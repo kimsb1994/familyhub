@@ -10,11 +10,17 @@ export function AuthProvider({ children }) {
   const [family,   setFamily]   = useState(null)
 
   useEffect(() => {
-    // Initial session
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
+    // Recover persisted session and refresh access token if expired
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) {
+        setSession(data.session)
+      } else {
+        // Try to refresh with stored refresh token
+        const { data: refreshed } = await supabase.auth.refreshSession()
+        setSession(refreshed.session)
+      }
     })
-    // Listen for auth changes
+    // Listen for auth changes (token refresh, sign-in, sign-out)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s)
     })

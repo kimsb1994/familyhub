@@ -4,7 +4,9 @@
       "Skill(update-config)",
       "Skill(update-config:*)",
       "Bash(npx --version)",
-      "Bash(npx -y @supabase/mcp-server-supabase@latest --help)"
+      "Bash(npx -y @supabase/mcp-server-supabase@latest --help)",
+      "Bash(claude mcp *)",
+      "Bash(node -e \"const fs = require\\('fs'\\); JSON.parse\\(fs.readFileSync\\('C:/Users/kimsb/.claude.json', 'utf8'\\)\\); console.log\\('JSON válido'\\)\")"
     ]
   }
 }

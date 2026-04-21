@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { getWeekStart, formatDate, mergeIngredients, groupBy, catColor, DAYS_FULL } from '../lib/constants'
 import { Avatar } from '../components/ui'
+import { useKioskMode } from '../hooks/useKioskMode'
 
 // ── Mini clock ────────────────────────────────────────────────────────────────
 function Clock() {
@@ -296,10 +297,46 @@ function WeekStrip({ familyId }) {
   )
 }
 
+// ── Kiosk activation overlay ───────────────────────────────────────────────────
+function KioskOverlay({ onActivate }) {
+  return (
+    <div
+      onClick={onActivate}
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(15,15,20,0.92)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        zIndex: 9999, cursor: 'pointer', gap: 20,
+        userSelect: 'none',
+      }}
+    >
+      <div style={{ fontSize: 72 }}>🏡</div>
+      <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 700, letterSpacing: '-.03em', margin: 0 }}>
+        Family<span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Hub</span>
+      </h1>
+      <div style={{ fontSize: 16, color: 'var(--muted)', marginTop: 4 }}>Toca per activar el mode quiosc</div>
+      <div style={{
+        marginTop: 8, padding: '12px 28px',
+        background: 'var(--accent)', borderRadius: 50,
+        fontSize: 15, fontWeight: 700, color: '#fff',
+        boxShadow: '0 4px 20px #FF6B3560',
+      }}>
+        Pantalla completa ⛶
+      </div>
+    </div>
+  )
+}
+
 // ── Main tablet hub ────────────────────────────────────────────────────────────
 export default function TabletHub({ members }) {
   const { family } = useAuth()
+  const { isFullscreen, enterFullscreen, supportsFullscreen } = useKioskMode()
+
   if (!family) return null
+
+  const showOverlay = supportsFullscreen && !isFullscreen
 
   return (
     <div style={{
@@ -312,6 +349,8 @@ export default function TabletHub({ members }) {
       padding: '16px 20px',
       boxSizing: 'border-box',
     }}>
+
+      {showOverlay && <KioskOverlay onActivate={enterFullscreen} />}
 
       {/* ── Top bar ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>

@@ -2,21 +2,21 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { formatDate } from '../lib/constants'
 import { Avatar, PageHeader, Spinner } from '../components/ui'
 
 const EVENT_COLORS = ['#FF6B35','#00C9A7','#FFD166','#8B5CF6','#06B6D4','#F43F5E','#84CC16']
 
-function EventModal({ existing, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
-  const [title,     setTitle]     = useState(existing?.title     || '')
-  const [date,      setDate]      = useState(existing?.event_date || new Date().toISOString().split('T')[0])
-  const [time,      setTime]      = useState(existing?.event_time?.slice(0,5) || '')
-  const [color,     setColor]     = useState(existing?.color     || '#FF6B35')
-  const [memberId,  setMemberId]  = useState(existing?.member_id || '')
-  const [isUrgent,  setIsUrgent]  = useState(existing?.is_urgent || false)
-  const [desc,      setDesc]      = useState(existing?.description || '')
-  const [saving,    setSaving]    = useState(false)
-  const [error,     setError]     = useState('')
+// ── Event form modal ───────────────────────────────────────────────────────────
+function EventModal({ existing, defaultDate, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
+  const [title,    setTitle]    = useState(existing?.title     || '')
+  const [date,     setDate]     = useState(existing?.event_date || defaultDate || new Date().toISOString().split('T')[0])
+  const [time,     setTime]     = useState(existing?.event_time?.slice(0,5) || '')
+  const [color,    setColor]    = useState(existing?.color     || '#FF6B35')
+  const [memberId, setMemberId] = useState(existing?.member_id || '')
+  const [isUrgent, setIsUrgent] = useState(existing?.is_urgent || false)
+  const [desc,     setDesc]     = useState(existing?.description || '')
+  const [saving,   setSaving]   = useState(false)
+  const [error,    setError]    = useState('')
 
   async function save() {
     if (!title.trim() || !date) return
@@ -104,13 +104,77 @@ function EventModal({ existing, familyId, members, sessionUserId, onSaved, onDel
   )
 }
 
+// ── Day popup ──────────────────────────────────────────────────────────────────
+function DayPopup({ dateStr, events, onClose, onEditEvent, onAddEvent }) {
+  const d = new Date(dateStr + 'T12:00')
+  const label = d.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-drag" />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, textTransform: 'capitalize' }}>
+            {label}
+          </h3>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+
+        {events.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13 }}>
+            Sense events per aquest dia
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+            {events.map(e => {
+              const dotColor = e.family_members?.avatar_color || e.color || 'var(--accent)'
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => onEditEvent(e)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'var(--surface)', border: `1px solid var(--border)`, cursor: 'pointer' }}
+                >
+                  <div style={{ width: 4, alignSelf: 'stretch', borderRadius: 4, background: dotColor, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {e.is_urgent && <span style={{ fontSize: 12 }}>⚡</span>}
+                      {e.title}
+                    </div>
+                    {(e.event_time || e.description) && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+                        {e.event_time ? e.event_time.slice(0, 5) : ''}
+                        {e.event_time && e.description ? ' · ' : ''}
+                        {e.description || ''}
+                      </div>
+                    )}
+                  </div>
+                  {e.family_members
+                    ? <Avatar member={e.family_members} size={30} />
+                    : <div style={{ fontSize: 16 }}>👨‍👩‍👧</div>
+                  }
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <button className="btn-primary" onClick={onAddEvent} style={{ width: '100%', justifyContent: 'center' }}>
+          + Afegir event
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ──────────────────────────────────────────────────────────────────
 export default function CalendarPage({ members }) {
   const { family, session } = useAuth()
-  const [events,  setEvents]  = useState([])
-  const [selDay,  setSelDay]  = useState(new Date().getDate())
-  const [modal,   setModal]   = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [month,   setMonth]   = useState(new Date())
+  const [events,   setEvents]   = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [month,    setMonth]    = useState(new Date())
+  const [dayPopup, setDayPopup] = useState(null) // dateStr when open
+  const [modal,    setModal]    = useState(null)  // { type: 'edit'|'add', data?, defaultDate? }
 
   const load = useCallback(async () => {
     if (!family) return
@@ -121,7 +185,7 @@ export default function CalendarPage({ members }) {
       .eq('family_id', family.id)
       .gte('event_date', `${y}-${m}-01`)
       .lte('event_date', `${y}-${m}-31`)
-      .order('event_date')
+      .order('event_date').order('event_time', { nullsFirst: true })
     setEvents(data || [])
     setLoading(false)
   }, [family, month])
@@ -135,10 +199,10 @@ export default function CalendarPage({ members }) {
     return () => supabase.removeChannel(ch)
   }, [load, family])
 
-  const daysInMonth   = new Date(month.getFullYear(), month.getMonth()+1, 0).getDate()
-  const firstWeekday  = new Date(month.getFullYear(), month.getMonth(), 1).getDay()
-  const offset        = firstWeekday === 0 ? 6 : firstWeekday - 1 // Monday-first
-  const monthStr      = month.toLocaleDateString('ca-ES', { month: 'long', year: 'numeric' })
+  const daysInMonth  = new Date(month.getFullYear(), month.getMonth()+1, 0).getDate()
+  const firstWeekday = new Date(month.getFullYear(), month.getMonth(), 1).getDay()
+  const offset       = firstWeekday === 0 ? 6 : firstWeekday - 1
+  const monthStr     = month.toLocaleDateString('ca-ES', { month: 'long', year: 'numeric' })
 
   const evtByDay = events.reduce((a, e) => {
     const d = parseInt(e.event_date.split('-')[2])
@@ -146,16 +210,27 @@ export default function CalendarPage({ members }) {
     return a
   }, {})
 
-  const selEvents = evtByDay[selDay] || []
-  const allUpcoming = events.filter(e => new Date(e.event_date) >= new Date())
+  const allUpcoming = events.filter(e => new Date(e.event_date + 'T12:00') >= new Date(new Date().toDateString()))
+
+  function toDateStr(d) {
+    const y = month.getFullYear(), m = String(month.getMonth()+1).padStart(2,'0')
+    return `${y}-${m}-${String(d).padStart(2,'0')}`
+  }
+
+  function handleDayClick(d) {
+    setDayPopup(toDateStr(d))
+  }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
+
+  const today = new Date()
+  const popupEvents = dayPopup ? (evtByDay[parseInt(dayPopup.split('-')[2])] || []) : []
 
   return (
     <div style={{ padding: '20px 16px' }} className="fu">
       <PageHeader title="Calendari" accent="Familiar" />
 
-      {/* Mini calendar */}
+      {/* ── Mini calendar ── */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div style={{ fontSize: 14, fontWeight: 600, textTransform: 'capitalize' }}>{monthStr}</div>
@@ -164,24 +239,46 @@ export default function CalendarPage({ members }) {
             <button className="btn-ghost" style={{ padding: '4px 10px', fontSize: 12 }} onClick={() => setMonth(d => new Date(d.getFullYear(), d.getMonth()+1, 1))}>›</button>
           </div>
         </div>
+
+        {/* Weekday headers */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3, marginBottom: 6 }}>
           {['Dl','Dt','Dc','Dj','Dv','Ds','Dg'].map(d => (
             <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', fontWeight: 600, padding: '3px 0' }}>{d}</div>
           ))}
         </div>
+
+        {/* Day cells */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
           {[...Array(offset)].map((_, i) => <div key={`e${i}`} />)}
           {[...Array(daysInMonth)].map((_, i) => {
             const d = i + 1
             const evts = evtByDay[d] || []
-            const isToday = d === new Date().getDate() && month.getMonth() === new Date().getMonth() && month.getFullYear() === new Date().getFullYear()
-            const isSel   = d === selDay && month.getMonth() === new Date().getMonth()
+            const isToday = d === today.getDate() && month.getMonth() === today.getMonth() && month.getFullYear() === today.getFullYear()
             return (
-              <div key={d} onClick={() => setSelDay(d)} style={{ textAlign: 'center', padding: '5px 0', borderRadius: 8, fontSize: 12, fontWeight: isToday ? 700 : 400, cursor: 'pointer', background: isSel ? 'var(--accent)' : isToday ? 'var(--accent-dim)' : 'transparent', color: isSel ? '#fff' : isToday ? 'var(--accent)' : 'var(--text)', transition: 'all .15s' }}>
-                {d}
+              <div
+                key={d}
+                onClick={() => handleDayClick(d)}
+                style={{
+                  textAlign: 'center', padding: '6px 0 4px', borderRadius: 8,
+                  fontSize: 12, fontWeight: isToday ? 700 : 400, cursor: 'pointer',
+                  background: isToday ? 'var(--accent-dim)' : 'transparent',
+                  color: isToday ? 'var(--accent)' : 'var(--text)',
+                  transition: 'background .12s',
+                }}
+              >
+                <div>{d}</div>
+                {/* Member color dots */}
                 {evts.length > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 1 }}>
-                    {evts.slice(0,3).map((e,j) => <div key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: e.color || 'var(--accent)' }} />)}
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 2 }}>
+                    {evts.slice(0, 3).map((e, j) => (
+                      <div
+                        key={j}
+                        style={{
+                          width: 5, height: 5, borderRadius: '50%',
+                          background: e.family_members?.avatar_color || e.color || 'var(--accent)',
+                        }}
+                      />
+                    ))}
                   </div>
                 )}
               </div>
@@ -190,7 +287,7 @@ export default function CalendarPage({ members }) {
         </div>
       </div>
 
-      {/* Member filter pills */}
+      {/* ── Member filter pills ── */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, overflowX: 'auto', paddingBottom: 4 }}>
         <div style={{ padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: 'var(--accent)', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>Tots</div>
         {members.map(m => (
@@ -200,16 +297,20 @@ export default function CalendarPage({ members }) {
         ))}
       </div>
 
-      {/* Upcoming events */}
+      {/* ── Upcoming events list ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {allUpcoming.length === 0 && (
           <div style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--muted)', fontSize: 13 }}>Cap event proper</div>
         )}
         {allUpcoming.map(e => (
           <div key={e.id} className="card" style={{ display: 'flex', gap: 12, padding: '14px', cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: e })}>
-            <div style={{ width: 48, flexShrink: 0, textAlign: 'center', background: (e.color || 'var(--accent)') + '18', borderRadius: 10, padding: '6px 4px' }}>
-              <div style={{ fontSize: 10, color: e.color, fontWeight: 700 }}>{e.event_date ? new Date(e.event_date+'T12:00').toLocaleDateString('ca-ES',{weekday:'short'}).toUpperCase() : ''}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: e.color, fontFamily: 'Fraunces, serif' }}>{e.event_date ? new Date(e.event_date+'T12:00').getDate() : ''}</div>
+            <div style={{ width: 48, flexShrink: 0, textAlign: 'center', background: (e.family_members?.avatar_color || e.color || 'var(--accent)') + '18', borderRadius: 10, padding: '6px 4px' }}>
+              <div style={{ fontSize: 10, color: e.family_members?.avatar_color || e.color, fontWeight: 700 }}>
+                {new Date(e.event_date+'T12:00').toLocaleDateString('ca-ES',{weekday:'short'}).toUpperCase()}
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: e.family_members?.avatar_color || e.color, fontFamily: 'Fraunces, serif' }}>
+                {new Date(e.event_date+'T12:00').getDate()}
+              </div>
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 3 }}>{e.title}</div>
@@ -228,9 +329,22 @@ export default function CalendarPage({ members }) {
         + Afegir event
       </button>
 
+      {/* ── Day popup ── */}
+      {dayPopup && !modal && (
+        <DayPopup
+          dateStr={dayPopup}
+          events={popupEvents}
+          onClose={() => setDayPopup(null)}
+          onEditEvent={e => { setDayPopup(null); setModal({ type: 'edit', data: e }) }}
+          onAddEvent={() => { setDayPopup(null); setModal({ type: 'add', defaultDate: dayPopup }) }}
+        />
+      )}
+
+      {/* ── Event form modal ── */}
       {modal && (
         <EventModal
           existing={modal.type === 'edit' ? modal.data : null}
+          defaultDate={modal.defaultDate}
           familyId={family.id}
           members={members}
           sessionUserId={session.user.id}

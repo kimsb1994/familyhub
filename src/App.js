@@ -17,6 +17,71 @@ import BottomNav    from './components/BottomNav'
 
 import './styles/global.css'
 
+// ── Battery icon SVG ──────────────────────────────────────────────────────────
+function BatteryIcon({ level, charging }) {
+  const pct = Math.round((level ?? 1) * 100)
+  const color = pct > 50 ? '#00C9A7' : pct > 20 ? '#FFD166' : '#F43F5E'
+  const fill  = Math.max(0, Math.round((level ?? 1) * 13))
+  return (
+    <svg width="22" height="11" viewBox="0 0 22 11" style={{ verticalAlign: 'middle' }}>
+      <rect x="0.5" y="1" width="17" height="9" rx="2" stroke={color} strokeWidth="1.2" fill="none" />
+      <rect x="17.5" y="3.5" width="2.5" height="4" rx="1" fill={color} />
+      <rect x="2" y="2.5" width={fill} height="6" rx="1.2" fill={color} />
+      {charging && <text x="9" y="9" fontSize="7" fill="#FFD166" textAnchor="middle">⚡</text>}
+    </svg>
+  )
+}
+
+// ── Mobile status bar ─────────────────────────────────────────────────────────
+function MobileStatusBar({ isOnline }) {
+  const [time,    setTime]    = useState(new Date())
+  const [battery, setBattery] = useState(null) // { level, charging }
+
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 10000)
+    return () => clearInterval(t)
+  }, [])
+
+  useEffect(() => {
+    if (!navigator.getBattery) return
+    let b = null
+    const upd = () => b && setBattery({ level: b.level, charging: b.charging })
+    navigator.getBattery().then(bat => {
+      b = bat; upd()
+      bat.addEventListener('levelchange', upd)
+      bat.addEventListener('chargingchange', upd)
+    })
+    return () => { if (b) { b.removeEventListener('levelchange', upd); b.removeEventListener('chargingchange', upd) } }
+  }, [])
+
+  const timeStr = time.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' })
+  const pct     = battery ? Math.round(battery.level * 100) : null
+  const batColor = !pct ? 'var(--muted)' : pct > 50 ? '#00C9A7' : pct > 20 ? '#FFD166' : '#F43F5E'
+
+  return (
+    <div style={{ padding: '10px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
+      <span style={{ fontWeight: 700, color: 'var(--text)', letterSpacing: '.04em' }}>{timeStr}</span>
+      <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+        {!isOnline && <span style={{ color: 'var(--yellow)', fontSize: 10, fontWeight: 600 }}>OFFLINE</span>}
+        {/* Signal bars */}
+        <svg width="15" height="11" viewBox="0 0 15 11" style={{ verticalAlign: 'middle' }}>
+          <rect x="0"  y="8" width="2.5" height="3"  rx="1" fill="var(--muted)" />
+          <rect x="3"  y="6" width="2.5" height="5"  rx="1" fill="var(--muted)" />
+          <rect x="6"  y="4" width="2.5" height="7"  rx="1" fill="var(--text)"  />
+          <rect x="9"  y="2" width="2.5" height="9"  rx="1" fill="var(--text)"  />
+          <rect x="12" y="0" width="2.5" height="11" rx="1" fill="var(--text)"  />
+        </svg>
+        {/* Battery */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <BatteryIcon level={battery?.level} charging={battery?.charging} />
+          {pct !== null && <span style={{ color: batColor, fontWeight: 600 }}>{pct}%</span>}
+          {pct === null && <span style={{ color: 'var(--muted)' }}>🔋</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function useIsTablet() {
   const [isTablet, setIsTablet] = useState(false)
   useEffect(() => {
@@ -120,13 +185,7 @@ function AppInner() {
     <div style={{ maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
       {!isOnline && <OfflineBanner />}
 
-      <div style={{ padding:'10px 20px 0', display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--muted)' }}>
-        <span style={{ fontWeight:600 }}>{new Date().toLocaleTimeString('ca-ES', { hour:'2-digit', minute:'2-digit' })}</span>
-        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-          {!isOnline && <span style={{ color:'var(--yellow)', fontSize:10 }}>OFFLINE</span>}
-          📶 🔋
-        </div>
-      </div>
+      <MobileStatusBar isOnline={isOnline} />
 
       <div style={{ flex:1, overflowY:'auto', paddingBottom:84 }}>
         {view === 'home'     && <Dashboard    members={members} onNavigate={setView} />}

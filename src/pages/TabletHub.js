@@ -39,48 +39,120 @@ function Panel({ title, accent, icon, children, style = {} }) {
   )
 }
 
+// ── Tablet meal modal ──────────────────────────────────────────────────────────
+function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, onSaved, onClose }) {
+  const [name,   setName]   = useState(existing?.name || '')
+  const [emoji,  setEmoji]  = useState(existing?.emoji || '')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (!name.trim()) return
+    setSaving(true)
+    const payload = { family_id: familyId, meal_type: mealType, day_of_week: dayName, week_start: weekStart, name: name.trim(), emoji: emoji.trim() || '🍽️' }
+    if (existing) {
+      await supabase.from('meals').update({ name: payload.name, emoji: payload.emoji }).eq('id', existing.id)
+    } else {
+      await supabase.from('meals').insert(payload)
+    }
+    onSaved()
+  }
+
+  async function del() {
+    await supabase.from('meals').delete().eq('id', existing.id)
+    onSaved()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 380, maxWidth: '90vw' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nou'} {mealType}</h3>
+          {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22 }} />
+          <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Afegir'}
+          </button>
+          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Menu panel ─────────────────────────────────────────────────────────────────
 function MenuPanel({ familyId }) {
-  const [meals, setMeals] = useState([])
-  const dayName = DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
+  const [meals,  setMeals]  = useState([])
+  const [modal,  setModal]  = useState(null)
+  const dayName   = DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
   const weekStart = getWeekStart()
 
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('meals').select('*, meal_ingredients(*)')
+      .eq('family_id', familyId).eq('day_of_week', dayName).eq('week_start', weekStart)
+    setMeals(data || [])
+  }, [familyId, dayName, weekStart])
+
   useEffect(() => {
-    supabase.from('meals').select('*, meal_ingredients(*)').eq('family_id', familyId).eq('day_of_week', dayName).eq('week_start', weekStart)
-      .then(({ data }) => setMeals(data || []))
+    load()
     const ch = supabase.channel('hub-meals')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'meals', filter: `family_id=eq.${familyId}` },
-        () => supabase.from('meals').select('*, meal_ingredients(*)').eq('family_id', familyId).eq('day_of_week', dayName).eq('week_start', weekStart).then(({ data }) => setMeals(data || [])))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meals', filter: `family_id=eq.${familyId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
-  }, [familyId, dayName, weekStart])
+  }, [load, familyId])
 
   const dinar = meals.find(m => m.meal_type === 'Dinar')
   const sopar = meals.find(m => m.meal_type === 'Sopar')
 
   return (
-    <Panel title="Menú" accent="d'avui" icon="🍽️">
-      {[['☀️', 'Dinar', dinar], ['🌙', 'Sopar', sopar]].map(([emoji, label, meal]) => (
-        <div key={label} style={{ padding: '8px 10px', borderRadius: 10, background: meal ? 'var(--surface)' : 'transparent', border: `1px solid ${meal ? 'var(--border)' : 'transparent'}`, marginBottom: 6 }}>
-          <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>{emoji} {label}</div>
-          {meal ? (
-            <>
-              <div style={{ fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span>{meal.emoji}</span>{meal.name}
+    <>
+      <Panel title="Menú" accent="d'avui" icon="🍽️" style={{ height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
+          {[['☀️', 'Dinar', dinar], ['🌙', 'Sopar', sopar]].map(([ico, label, meal]) => (
+            <div
+              key={label}
+              onClick={() => setModal({ mealType: label, existing: meal || null })}
+              style={{ flex: 1, padding: '12px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 0, cursor: 'pointer', transition: 'border-color .15s' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em' }}>{ico} {label}</div>
+                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>{meal ? '✏️' : '+'}</span>
               </div>
-              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                {meal.meal_ingredients?.slice(0, 4).map((ing, i) => {
-                  const c = catColor(ing.category)
-                  return <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 10, background: c + '18', color: c, fontWeight: 600 }}>{ing.name}</span>
-                })}
-              </div>
-            </>
-          ) : (
-            <div style={{ fontSize: 12, color: 'var(--dim)', fontStyle: 'italic' }}>Sense planificar</div>
-          )}
+              {meal ? (
+                <>
+                  <div style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ fontSize: 20 }}>{meal.emoji}</span>{meal.name}
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {meal.meal_ingredients?.slice(0, 5).map((ing, i) => {
+                      const c = catColor(ing.category)
+                      return <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: c + '18', color: c, fontWeight: 600 }}>{ing.name}</span>
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--dim)', fontStyle: 'italic' }}>Toca per afegir</div>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
-    </Panel>
+      </Panel>
+      {modal && (
+        <TabletMealModal
+          existing={modal.existing}
+          mealType={modal.mealType}
+          familyId={familyId}
+          dayName={dayName}
+          weekStart={weekStart}
+          onSaved={() => { load(); setModal(null) }}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </>
   )
 }
 
@@ -89,6 +161,8 @@ function ShoppingPanel({ familyId }) {
   const [meals, setMeals] = useState([])
   const [manualItems, setManualItems] = useState([])
   const [checked, setChecked] = useState({})
+  const [newItem, setNewItem] = useState('')
+  const [adding, setAdding] = useState(false)
   const weekStart = getWeekStart()
 
   const load = useCallback(async () => {
@@ -114,8 +188,28 @@ function ShoppingPanel({ familyId }) {
   const total = allItems.length
   const done = allItems.filter(i => i._ai ? !!checked[i.name?.toLowerCase()] : i.is_checked).length
 
+  async function addItem(e) {
+    e.preventDefault()
+    if (!newItem.trim()) return
+    setAdding(true)
+    await supabase.from('shopping_items').insert({ family_id: familyId, name: newItem.trim(), week_start: weekStart, is_checked: false })
+    setNewItem('')
+    setAdding(false)
+    load()
+  }
+
   return (
     <Panel title="Llista de" accent="compra" icon="🛒">
+      <form onSubmit={addItem} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <input
+          className="inp"
+          placeholder="Afegir producte..."
+          value={newItem}
+          onChange={e => setNewItem(e.target.value)}
+          style={{ flex: 1, fontSize: 13, padding: '6px 10px' }}
+        />
+        <button className="btn-primary" type="submit" disabled={adding || !newItem.trim()} style={{ padding: '6px 12px', fontSize: 13, flexShrink: 0 }}>+</button>
+      </form>
       {total > 0 && (
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
@@ -203,13 +297,15 @@ function EventsPanel({ familyId, members }) {
 
 // ── Tasks panel ────────────────────────────────────────────────────────────────
 function TasksPanel({ familyId }) {
-  const [tasks, setTasks] = useState([])
+  const [tasks,   setTasks]   = useState([])
+  const [newText, setNewText] = useState('')
+  const [adding,  setAdding]  = useState(false)
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('tasks')
       .select('*, family_members(name,avatar_color)')
       .eq('family_id', familyId).eq('is_done', false)
-      .order('is_urgent', { ascending: false }).limit(6)
+      .order('is_urgent', { ascending: false }).limit(10)
     setTasks(data || [])
   }, [familyId])
 
@@ -226,19 +322,39 @@ function TasksPanel({ familyId }) {
     setTasks(p => p.filter(t => t.id !== task.id))
   }
 
+  async function addTask(e) {
+    e.preventDefault()
+    if (!newText.trim()) return
+    setAdding(true)
+    await supabase.from('tasks').insert({ family_id: familyId, text: newText.trim(), is_done: false, is_urgent: false })
+    setNewText('')
+    setAdding(false)
+    load()
+  }
+
   return (
     <Panel title="Tasques" accent="& imprevistos" icon="✅">
-      {tasks.length === 0 && <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'center', padding: '12px 0' }}>Tot al dia! 🎉</div>}
+      <form onSubmit={addTask} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+        <input
+          className="inp"
+          placeholder="Nova tasca..."
+          value={newText}
+          onChange={e => setNewText(e.target.value)}
+          style={{ flex: 1, fontSize: 13, padding: '6px 10px' }}
+        />
+        <button className="btn-primary" type="submit" disabled={adding || !newText.trim()} style={{ padding: '6px 12px', fontSize: 13, flexShrink: 0 }}>+</button>
+      </form>
+      {tasks.length === 0 && <div style={{ fontSize: 13, color: 'var(--dim)', textAlign: 'center', padding: '10px 0' }}>Tot al dia! 🎉</div>}
       {tasks.map(task => (
-        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: task.is_urgent ? 'var(--red-dim)' : 'var(--surface)', border: `1px solid ${task.is_urgent ? '#FF446630' : 'var(--border)'}`, marginBottom: 4 }}>
-          <div onClick={() => toggleDone(task)} style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${task.is_urgent ? 'var(--red)' : 'var(--border)'}`, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {task.is_urgent && <span style={{ fontSize: 9 }}>⚡</span>}
+        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, background: task.is_urgent ? 'var(--red-dim)' : 'var(--surface)', border: `1px solid ${task.is_urgent ? '#FF446630' : 'var(--border)'}`, marginBottom: 5 }}>
+          <div onClick={() => toggleDone(task)} style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${task.is_urgent ? 'var(--red)' : 'var(--border)'}`, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {task.is_urgent && <span style={{ fontSize: 11 }}>⚡</span>}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: task.is_urgent ? 600 : 500, color: task.is_urgent ? 'var(--red)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</div>
-            {task.amount && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{task.amount}€</div>}
+            <div style={{ fontSize: 13, fontWeight: task.is_urgent ? 600 : 500, color: task.is_urgent ? 'var(--red)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</div>
+            {task.amount && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{task.amount}€</div>}
           </div>
-          {task.family_members && <Avatar member={task.family_members} size={20} />}
+          {task.family_members && <Avatar member={task.family_members} size={24} />}
         </div>
       ))}
     </Panel>
@@ -318,7 +434,7 @@ function TabletEventModal({ existing, defaultDate, familyId, members, sessionUse
 function TabletCalendar({ familyId, members, sessionUserId }) {
   const [events,  setEvents]  = useState([])
   const [month,   setMonth]   = useState(new Date())
-  const [selDay,  setSelDay]  = useState(new Date().getDate())
+  const [selDay,  setSelDay]  = useState(null)
   const [modal,   setModal]   = useState(null)
 
   const load = useCallback(async () => {
@@ -383,7 +499,6 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
           const d = i + 1
           const evts = evtByDay[d] || []
           const isToday = d === today.getDate() && month.getMonth() === today.getMonth() && month.getFullYear() === today.getFullYear()
-          const isSel = d === selDay
           return (
             <div
               key={d}
@@ -391,8 +506,8 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
               style={{
                 textAlign: 'center', padding: '4px 2px 3px', borderRadius: 8, fontSize: 12,
                 fontWeight: isToday ? 700 : 400, cursor: 'pointer',
-                background: isSel ? 'var(--accent)' : isToday ? 'var(--accent-dim)' : 'transparent',
-                color: isSel ? '#fff' : isToday ? 'var(--accent)' : 'var(--text)',
+                background: isToday ? 'var(--accent-dim)' : 'transparent',
+                color: isToday ? 'var(--accent)' : 'var(--text)',
                 transition: 'background .12s',
               }}
             >
@@ -400,7 +515,7 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
               {evts.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 2 }}>
                   {evts.slice(0, 3).map((e, j) => (
-                    <div key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: isSel ? 'rgba(255,255,255,0.7)' : (e.family_members?.avatar_color || e.color || 'var(--accent)') }} />
+                    <div key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: e.family_members?.avatar_color || e.color || 'var(--accent)' }} />
                   ))}
                 </div>
               )}
@@ -409,44 +524,42 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
         })}
       </div>
 
-      {/* Selected day panel */}
-      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'capitalize', letterSpacing: '.03em' }}>
-            {selLabel}
-          </div>
-          <button
-            className="btn-ghost"
-            style={{ fontSize: 11, padding: '3px 10px' }}
-            onClick={() => setModal({ type: 'add', defaultDate: selDateStr })}
-          >
-            + Afegir
-          </button>
-        </div>
-
-        {selEvents.length === 0 ? (
-          <div style={{ fontSize: 11, color: 'var(--dim)', fontStyle: 'italic', textAlign: 'center', padding: '6px 0' }}>Sense events</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
-            {selEvents.map(e => (
-              <div
-                key={e.id}
-                onClick={() => setModal({ type: 'edit', data: e })}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}
-              >
-                <div style={{ width: 3, borderRadius: 2, background: e.family_members?.avatar_color || e.color || 'var(--accent)', alignSelf: 'stretch', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {e.is_urgent && '⚡ '}{e.title}
-                  </div>
-                  {e.event_time && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{e.event_time.slice(0,5)}</div>}
-                </div>
-                {e.family_members && <Avatar member={e.family_members} size={22} />}
+      {/* Day popup */}
+      {selDay !== null && (
+        <div onClick={() => setSelDay(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 900 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 24, width: 420, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, textTransform: 'capitalize' }}>{selLabel}</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button className="btn-ghost" style={{ fontSize: 12, padding: '5px 14px' }} onClick={() => { setSelDay(null); setModal({ type: 'add', defaultDate: selDateStr }) }}>+ Afegir</button>
+                <button className="btn-icon" onClick={() => setSelDay(null)}>✕</button>
               </div>
-            ))}
+            </div>
+            {selEvents.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--dim)', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>Sense events per aquest dia</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}>
+                {selEvents.map(e => (
+                  <div
+                    key={e.id}
+                    onClick={() => { setSelDay(null); setModal({ type: 'edit', data: e }) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                  >
+                    <div style={{ width: 4, borderRadius: 2, background: e.family_members?.avatar_color || e.color || 'var(--accent)', alignSelf: 'stretch', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {e.is_urgent && '⚡ '}{e.title}
+                      </div>
+                      {e.event_time && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{e.event_time.slice(0,5)}</div>}
+                    </div>
+                    {e.family_members && <Avatar member={e.family_members} size={26} />}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {modal && (
         <TabletEventModal

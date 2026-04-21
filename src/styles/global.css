@@ -1,0 +1,184 @@
+/* src/styles/global.css */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,wght@0,700;1,500&display=swap');
+
+:root {
+  --bg:          #0F0F14;
+  --surface:     #16161E;
+  --card:        #1C1C27;
+  --card-hover:  #22222F;
+  --border:      #2A2A3A;
+  --border-h:    #3A3A4A;
+  --accent:      #FF6B35;
+  --accent-dim:  #FF6B3520;
+  --accent-glow: #FF6B3540;
+  --teal:        #00C9A7;
+  --teal-dim:    #00C9A720;
+  --purple:      #8B5CF6;
+  --purple-dim:  #8B5CF620;
+  --yellow:      #FFD166;
+  --yellow-dim:  #FFD16620;
+  --red:         #FF4466;
+  --red-dim:     #FF446618;
+  --text:        #F0F0F8;
+  --muted:       #7A7A9A;
+  --dim:         #4A4A6A;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+@keyframes fadeUp  { from { opacity:0; transform:translateY(10px) } to { opacity:1; transform:translateY(0) } }
+@keyframes slideUp { from { opacity:0; transform:translateY(30px) } to { opacity:1; transform:translateY(0) } }
+@keyframes spin    { to   { transform: rotate(360deg) } }
+@keyframes pulse   { 0%,100% { opacity:1 } 50% { opacity:.4 } }
+
+.fu  { animation: fadeUp  .3s  ease forwards; }
+.su  { animation: slideUp .25s ease forwards; }
+.spin { animation: spin 1s linear infinite; display: inline-block; }
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  transition: border-color .2s, background .2s;
+}
+.card:hover { border-color: var(--border-h); }
+
+/* ── Buttons ── */
+.btn-primary {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 10px;
+  padding: 10px 18px;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+  transition: all .2s;
+}
+.btn-primary:hover { background: #ff7d4a; transform: translateY(-1px); box-shadow: 0 4px 16px var(--accent-glow); }
+.btn-primary:disabled { background: var(--dim); color: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-ghost {
+  background: var(--border); color: var(--muted);
+  border: none; border-radius: 10px;
+  padding: 9px 16px;
+  font-family: inherit; font-size: 13px; font-weight: 500;
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+  transition: all .2s;
+}
+.btn-ghost:hover { background: var(--card-hover); color: var(--text); }
+
+.btn-icon {
+  background: none; border: none; cursor: pointer;
+  color: var(--dim); font-size: 15px;
+  padding: 4px 6px; border-radius: 6px;
+  transition: all .15s; line-height: 1;
+}
+.btn-icon:hover { color: var(--text); background: var(--border); }
+
+/* ── Form inputs ── */
+.inp {
+  width: 100%;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 13px;
+  color: var(--text);
+  font-family: inherit; font-size: 14px;
+  outline: none;
+  transition: border-color .15s;
+}
+.inp:focus { border-color: var(--accent); }
+.inp::placeholder { color: var(--dim); }
+select.inp option { background: var(--surface); }
+
+/* ── Tags & chips ── */
+.tag {
+  font-size: 10px; font-weight: 600;
+  padding: 3px 8px; border-radius: 20px;
+  letter-spacing: .05em; text-transform: uppercase;
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+}
+
+/* ── Section title ── */
+.section-title {
+  font-family: 'Fraunces', serif;
+  font-size: 22px; font-weight: 700;
+  letter-spacing: -.02em; margin-bottom: 16px;
+}
+.section-title span { color: var(--accent); font-style: italic; }
+
+/* ── Nav ── */
+.nav-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 10px; border-radius: 12px;
+  font-family: inherit; font-size: 10px; font-weight: 500;
+  transition: all .2s; position: relative;
+}
+.nav-btn:hover { color: var(--text); background: var(--card); }
+.nav-btn.active { color: var(--accent); }
+
+/* ── Meal slots ── */
+.meal-slot {
+  border-radius: 12px; padding: 10px 12px;
+  cursor: pointer; transition: all .2s;
+  min-height: 56px; display: flex; align-items: center; gap: 8px;
+  border: 1.5px dashed var(--border);
+}
+.meal-slot.filled { border-style: solid; border-color: var(--border); background: var(--surface); }
+.meal-slot.filled:hover { border-color: var(--border-h); background: var(--card-hover); }
+.meal-slot.empty:hover { border-color: #FF6B3555; background: var(--accent-dim); }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: #00000090; backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; justify-content: center;
+  z-index: 300;
+}
+.modal-sheet {
+  background: var(--surface);
+  width: 100%; max-width: 480px;
+  border-radius: 22px 22px 0 0;
+  padding: 24px 20px 40px;
+  max-height: 90vh; overflow-y: auto;
+  animation: slideUp .25s ease;
+}
+.modal-drag {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border); margin: 0 auto 20px;
+}
+
+/* ── Checkbox ── */
+.checkbox {
+  width: 20px; height: 20px; border-radius: 6px;
+  border: 1.5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .15s; flex-shrink: 0;
+}
+.checkbox.teal   { background: var(--teal);   border-color: var(--teal); }
+.checkbox.orange { background: var(--accent);  border-color: var(--accent); }
+.checkbox.red    { background: var(--red);    border-color: var(--red); }
+
+/* ── Shopping row ── */
+.shop-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; border-radius: 11px;
+  transition: all .15s; cursor: pointer;
+}
+.shop-row:hover { background: var(--card-hover); }

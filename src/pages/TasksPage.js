@@ -1,0 +1,234 @@
+// src/pages/TasksPage.js
+import React, { useEffect, useState, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
+import { Avatar, PageHeader, Spinner } from '../components/ui'
+
+function TaskModal({ existing, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
+  const [text,      setText]      = useState(existing?.text      || '')
+  const [isUrgent,  setIsUrgent]  = useState(existing?.is_urgent || false)
+  const [dueDate,   setDueDate]   = useState(existing?.due_date  || '')
+  const [amount,    setAmount]    = useState(existing?.amount    || '')
+  const [assignedTo,setAssignedTo]= useState(existing?.assigned_to || '')
+  const [saving,    setSaving]    = useState(false)
+  const [error,     setError]     = useState('')
+
+  async function save() {
+    if (!text.trim()) return
+    setSaving(true); setError('')
+    const payload = {
+      family_id: familyId, text: text.trim(), is_urgent: isUrgent,
+      due_date: dueDate || null, amount: amount ? parseFloat(amount) : null,
+      assigned_to: assignedTo || null, created_by: sessionUserId,
+    }
+    const { error: e } = existing
+      ? await supabase.from('tasks').update(payload).eq('id', existing.id)
+      : await supabase.from('tasks').insert(payload)
+    if (e) { setError(e.message); setSaving(false); return }
+    onSaved(); onClose()
+  }
+
+  async function del() {
+    await supabase.from('tasks').delete().eq('id', existing.id)
+    onDeleted(); onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-drag" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{existing ? 'Editar' : 'Nova'} tasca</h3>
+          {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>Tasca *</label>
+          <input className="inp" placeholder="Descripció de la tasca..." value={text} onChange={e => setText(e.target.value)} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>Data límit</label>
+            <input className="inp" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>Import (€)</label>
+            <input className="inp" type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>Assignada a</label>
+          <select className="inp" value={assignedTo} onChange={e => setAssignedTo(e.target.value)}>
+            <option value="">Tota la família</option>
+            {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--red-dim)', border: '1px solid #FF446630', marginBottom: 14, cursor: 'pointer' }} onClick={() => setIsUrgent(p => !p)}>
+          <div className={`checkbox ${isUrgent ? 'red' : ''}`}>
+            {isUrgent && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>⚡ Imprevista / Urgent</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>Apareixerà destacada al dashboard</div>
+          </div>
+        </div>
+
+        {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 8 }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-primary" onClick={save} disabled={saving || !text.trim()} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Crear tasca'}
+          </button>
+          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function TasksPage({ members }) {
+  const { family, session } = useAuth()
+  const [tasks,   setTasks]   = useState([])
+  const [modal,   setModal]   = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    if (!family) return
+    const { data } = await supabase
+      .from('tasks')
+      .select('*, family_members(name,avatar_color)')
+      .eq('family_id', family.id)
+      .order('is_urgent', { ascending: false })
+      .order('created_at')
+    setTasks(data || [])
+    setLoading(false)
+  }, [family])
+
+  useEffect(() => {
+    load()
+    if (!family) return
+    const ch = supabase.channel('tasks')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `family_id=eq.${family.id}` }, load)
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [load, family])
+
+  async function toggleDone(task) {
+    await supabase.from('tasks').update({ is_done: !task.is_done }).eq('id', task.id)
+    setTasks(p => p.map(t => t.id === task.id ? { ...t, is_done: !t.is_done } : t))
+  }
+
+  const pending = tasks.filter(t => !t.is_done)
+  const done    = tasks.filter(t => t.is_done)
+  const urgent  = pending.filter(t => t.is_urgent)
+  const normal  = pending.filter(t => !t.is_urgent)
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
+
+  return (
+    <div style={{ padding: '20px 16px' }} className="fu">
+      <PageHeader
+        title="Tasques" accent="& Imprevistos"
+        action={
+          <button className="btn-primary" onClick={() => setModal({ type: 'add' })} style={{ fontSize: 12, padding: '9px 14px' }}>
+            + Nova
+          </button>
+        }
+      />
+
+      {/* Stats */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        {[
+          { val: pending.length, label: 'Pendents', color: 'var(--accent)' },
+          { val: done.length,    label: 'Fetes',    color: 'var(--teal)'   },
+        ].map(s => (
+          <div key={s.label} className="card" style={{ flex: 1, textAlign: 'center', padding: '12px' }}>
+            <div style={{ fontSize: 26, fontWeight: 700, color: s.color, fontFamily: 'Fraunces, serif' }}>{s.val}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Urgent */}
+      {urgent.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>⚡ Imprevistos urgents</div>
+          {urgent.map(task => (
+            <div key={task.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px', marginBottom: 8, background: 'var(--red-dim)', borderColor: '#FF446630', cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: task })}>
+              <div className="checkbox red" onClick={e => { e.stopPropagation(); toggleDone(task) }}>
+                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>⚡</span>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--red)' }}>{task.text}</div>
+                {(task.due_date || task.amount) && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                    {task.due_date && `Venc. ${new Date(task.due_date+'T12:00').toLocaleDateString('ca-ES')}`}
+                    {task.amount && ` · ${task.amount}€`}
+                  </div>
+                )}
+              </div>
+              {task.family_members && <Avatar member={task.family_members} size={26} />}
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Normal pending */}
+      {normal.length > 0 && (
+        <>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8, marginTop: urgent.length ? 16 : 0 }}>Pendents</div>
+          {normal.map(task => (
+            <div key={task.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px', marginBottom: 8, cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: task })}>
+              <div className="checkbox" onClick={e => { e.stopPropagation(); toggleDone(task) }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{task.text}</div>
+                {(task.due_date || task.amount) && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                    {task.due_date && `Venc. ${new Date(task.due_date+'T12:00').toLocaleDateString('ca-ES')}`}
+                    {task.amount && ` · ${task.amount}€`}
+                  </div>
+                )}
+              </div>
+              {task.family_members && <Avatar member={task.family_members} size={26} />}
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Done */}
+      {done.length > 0 && (
+        <>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8, marginTop: 16 }}>Fetes ✓</div>
+          {done.map(task => (
+            <div key={task.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px', marginBottom: 6, opacity: .5, cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: task })}>
+              <div className="checkbox teal" onClick={e => { e.stopPropagation(); toggleDone(task) }}>
+                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>
+              </div>
+              <div style={{ flex: 1, fontSize: 13, textDecoration: 'line-through', color: 'var(--muted)' }}>{task.text}</div>
+              {task.family_members && <Avatar member={task.family_members} size={22} />}
+            </div>
+          ))}
+        </>
+      )}
+
+      {tasks.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Cap tasca pendent</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Afegeix tasques o imprevistos per fer-ne seguiment.</div>
+        </div>
+      )}
+
+      {modal && (
+        <TaskModal
+          existing={modal.type === 'edit' ? modal.data : null}
+          familyId={family.id} members={members} sessionUserId={session.user.id}
+          onSaved={load} onDeleted={load} onClose={() => setModal(null)}
+        />
+      )}
+    </div>
+  )
+}

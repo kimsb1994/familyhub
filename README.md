@@ -1,70 +1,156 @@
-# Getting Started with Create React App
+# 🏡 FamilyHub
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Gestió familiar completa: menú setmanal, llista de compra auto-generada, calendari d'events, tasques i imprevistos.
 
-## Available Scripts
+**PWA instal·lable** · **Sync en temps real** · **Vista hub per a tablet** · **Multi-usuari per família**
 
-In the project directory, you can run:
+---
 
-### `npm start`
+## Estructura del projecte
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```
+familyhub/
+├── public/
+│   ├── index.html          ← Splash screen + PWA meta
+│   ├── manifest.json       ← Config PWA (icones, nom, colors)
+│   ├── sw.js               ← Service Worker (offline + notificacions)
+│   └── icons/              ← Icones PWA (generar amb script)
+├── scripts/
+│   └── generate-icons.js   ← Script per generar icones
+├── src/
+│   ├── App.js              ← Root: auth guard + detecció tablet/mòbil
+│   ├── index.js            ← Entry point React
+│   ├── hooks/
+│   │   └── usePWA.js       ← Install prompt, offline, notificacions
+│   ├── lib/
+│   │   ├── supabase.js     ← Client Supabase + auth helpers
+│   │   ├── AuthContext.js  ← Context de sessió + família
+│   │   └── constants.js    ← Dies, categories, helpers
+│   ├── components/
+│   │   ├── ui.js           ← Avatar, Spinner, EmptyState, etc.
+│   │   └── BottomNav.js    ← Navegació inferior mòbil
+│   ├── pages/
+│   │   ├── AuthPage.js     ← Login + registre + crear/unir família
+│   │   ├── Dashboard.js    ← Pantalla d'inici
+│   │   ├── MenuPage.js     ← Menú setmanal amb ingredients
+│   │   ├── ShoppingPage.js ← Llista de compra auto-generada
+│   │   ├── CalendarPage.js ← Calendari d'events
+│   │   ├── TasksPage.js    ← Tasques i imprevistos
+│   │   ├── ProfilePage.js  ← Perfils i configuració
+│   │   └── TabletHub.js    ← Vista hub per a tablet (landscape)
+│   └── styles/
+│       └── global.css      ← Variables CSS + estils globals
+├── supabase_schema.sql     ← Schema SQL per executar a Supabase
+├── .env.example            ← Plantilla variables d'entorn
+└── package.json
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+---
 
-### `npm test`
+## Posada en marxa
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 1. Crear el projecte React
 
-### `npm run build`
+```bash
+npx create-react-app familyhub
+cd familyhub
+npm install @supabase/supabase-js date-fns
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 2. Copiar els fitxers
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Substitueix el contingut de `src/` i `public/` amb els fitxers d'aquest projecte.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 3. Configurar Supabase
 
-### `npm run eject`
+1. Ves a [supabase.com](https://supabase.com) i crea un projecte gratuït
+2. Ves a **SQL Editor** i executa el contingut de `supabase_schema.sql`
+3. Ves a **Settings → API** i copia la URL i la clau anon
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### 4. Variables d'entorn
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Crea un fitxer `.env` a l'arrel:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```
+REACT_APP_SUPABASE_URL=https://XXXXXXXX.supabase.co
+REACT_APP_SUPABASE_ANON_KEY=eyJ...
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 5. Generar icones PWA
 
-## Learn More
+```bash
+npm install canvas --save-dev
+node scripts/generate-icons.js
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### 6. Arrancar en local
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```bash
+npm start
+```
 
-### Code Splitting
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Desplegar a producció (Vercel)
 
-### Analyzing the Bundle Size
+```bash
+# 1. Pujar a GitHub
+git init && git add . && git commit -m "FamilyHub"
+git remote add origin https://github.com/TU_USUARI/familyhub.git
+git push -u origin main
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+# 2. Anar a vercel.com → New Project → importar el repo
+# 3. Afegir les variables d'entorn a Vercel (mateixos valors que .env)
+# 4. Deploy!
+```
 
-### Making a Progressive Web App
+**Configurar Supabase per a producció:**
+- Supabase Dashboard → Authentication → URL Configuration
+- Site URL: `https://familyhub.vercel.app`
+- Redirect URLs: `https://familyhub.vercel.app/**`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+---
 
-### Advanced Configuration
+## Instal·lar com a PWA
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+**Android (Chrome):**
+1. Obre l'app al navegador
+2. Menú → "Afegir a la pantalla d'inici"
+3. Confirmar
 
-### Deployment
+**iOS (Safari):**
+1. Obre l'app a Safari
+2. Botó compartir → "Afegir a la pantalla d'inici"
+3. Confirmar
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+**Tablet (hub de casa):**
+- Instal·la la PWA normalment
+- Obre l'app en mode landscape → apareixerà automàticament la vista hub amb els 4 panells
+- Activa "Pantalla sempre encesa" a la configuració del sistema per mantenir el hub visible
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Funcionalitats
+
+| Mòdul | Descripció |
+|-------|-----------|
+| 🍽️ Menú | Planifica dinar i sopar per cada dia, amb ingredients per a 3 persones |
+| 🛒 Compra | Llista auto-generada dels ingredients del menú + productes manuals |
+| 📅 Calendari | Events per a tota la família o per membre, amb alertes urgents |
+| ✅ Tasques | Tasques assignades a membres, imprevistos urgents amb import |
+| 👥 Família | Perfils de membres, invitar per codi, editar nom i color |
+| 📱 PWA | Instal·lable a iOS i Android, funciona offline |
+| 🖥️ Hub tablet | Vista landscape amb tots els mòduls visibles alhora |
+| 🔴 Temps real | Sync automàtic entre tots els dispositius via Supabase |
+
+---
+
+## Cost en producció
+
+| Servei | Pla | Cost |
+|--------|-----|------|
+| Vercel | Free | 0€/mes |
+| Supabase | Free (50k usuaris, 500MB) | 0€/mes |
+| Domini propi (opcional) | — | ~10€/any |
+
+**Total: 0€/mes** per a ús familiar normal.

@@ -323,11 +323,12 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
 
   const load = useCallback(async () => {
     const y = month.getFullYear(), m = String(month.getMonth()+1).padStart(2,'0')
+    const lastDay = new Date(y, month.getMonth()+1, 0).getDate()
     const { data } = await supabase.from('events')
       .select('*, family_members(name,avatar_color)')
       .eq('family_id', familyId)
       .gte('event_date', `${y}-${m}-01`)
-      .lte('event_date', `${y}-${m}-31`)
+      .lte('event_date', `${y}-${m}-${String(lastDay).padStart(2,'0')}`)
       .order('event_date').order('event_time', { nullsFirst: true })
     setEvents(data || [])
   }, [familyId, month])
@@ -512,7 +513,6 @@ export default function TabletHub({ members }) {
               </div>
             ))}
           </div>
-          <Clock />
         </div>
       </div>
 

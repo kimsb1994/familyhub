@@ -185,8 +185,6 @@ function AppInner() {
     <div style={{ maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
       {!isOnline && <OfflineBanner />}
 
-      <MobileStatusBar isOnline={isOnline} />
-
       <div style={{ flex:1, overflowY:'auto', paddingBottom:84 }}>
         {view === 'home'     && <Dashboard    members={members} onNavigate={setView} />}
         {view === 'calendar' && <CalendarPage members={members} />}

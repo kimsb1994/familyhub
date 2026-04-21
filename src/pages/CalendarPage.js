@@ -179,12 +179,13 @@ export default function CalendarPage({ members }) {
   const load = useCallback(async () => {
     if (!family) return
     const y = month.getFullYear(), m = String(month.getMonth()+1).padStart(2,'0')
+    const lastDay = new Date(y, month.getMonth()+1, 0).getDate()
     const { data } = await supabase
       .from('events')
       .select('*, family_members(name,avatar_color)')
       .eq('family_id', family.id)
       .gte('event_date', `${y}-${m}-01`)
-      .lte('event_date', `${y}-${m}-31`)
+      .lte('event_date', `${y}-${m}-${String(lastDay).padStart(2,'0')}`)
       .order('event_date').order('event_time', { nullsFirst: true })
     setEvents(data || [])
     setLoading(false)

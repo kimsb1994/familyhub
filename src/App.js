@@ -15,6 +15,7 @@ import ProfilePage  from './pages/ProfilePage'
 import TabletHub    from './pages/TabletHub'
 import BottomNav    from './components/BottomNav'
 
+import { LanguageProvider, useTranslation } from './lib/i18n'
 import './styles/global.css'
 
 // ── Battery icon SVG ──────────────────────────────────────────────────────────
@@ -95,23 +96,25 @@ function useIsTablet() {
 }
 
 function InstallBanner({ onInstall, onDismiss }) {
+  const { t } = useTranslation()
   return (
     <div style={{ position:'fixed', bottom:88, left:'50%', transform:'translateX(-50%)', width:'calc(100% - 32px)', maxWidth:440, background:'var(--card)', border:'1px solid #FF6B3540', borderRadius:14, padding:'12px 16px', display:'flex', alignItems:'center', gap:12, zIndex:200, boxShadow:'0 8px 32px #00000060' }}>
       <div style={{ fontSize:32, flexShrink:0 }}>🏡</div>
       <div style={{ flex:1 }}>
-        <div style={{ fontSize:13, fontWeight:700 }}>Instal·lar FamilyHub</div>
-        <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>Accés ràpid des de la pantalla d'inici</div>
+        <div style={{ fontSize:13, fontWeight:700 }}>{t('app.install_title')}</div>
+        <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{t('app.install_desc')}</div>
       </div>
-      <button onClick={onInstall} className="btn-primary" style={{ fontSize:12, padding:'8px 14px', flexShrink:0 }}>Instal·lar</button>
+      <button onClick={onInstall} className="btn-primary" style={{ fontSize:12, padding:'8px 14px', flexShrink:0 }}>{t('app.install_btn')}</button>
       <button onClick={onDismiss} className="btn-icon">✕</button>
     </div>
   )
 }
 
 function OfflineBanner() {
+  const { t } = useTranslation()
   return (
     <div style={{ position:'fixed', top:0, left:0, right:0, background:'var(--yellow)', color:'#000', padding:'8px 16px', textAlign:'center', fontSize:12, fontWeight:600, zIndex:500 }}>
-      📡 Sense connexió — Les dades es sincronitzaran quan tornis a connectar-te
+      📡 {t('app.offline')}
     </div>
   )
 }
@@ -125,6 +128,18 @@ function AppInner() {
   const [badges,      setBadges]      = useState({})
   const [showInstall, setShowInstall] = useState(false)
   const [notifAsked,  setNotifAsked]  = useState(false)
+
+  // Apply saved theme + accent color on app start
+  useEffect(() => {
+    const theme  = localStorage.getItem('theme')
+    const accent = localStorage.getItem('accent-color')
+    if (theme === 'light') document.body.classList.add('light')
+    if (accent) {
+      document.documentElement.style.setProperty('--accent',      accent)
+      document.documentElement.style.setProperty('--accent-dim',  accent + '20')
+      document.documentElement.style.setProperty('--accent-glow', accent + '40')
+    }
+  }, [])
 
   useEffect(() => {
     if (!installPrompt || isInstalled) return
@@ -207,5 +222,5 @@ function AppInner() {
 }
 
 export default function App() {
-  return <AuthProvider><AppInner /></AuthProvider>
+  return <LanguageProvider><AuthProvider><AppInner /></AuthProvider></LanguageProvider>
 }

@@ -1,6 +1,8 @@
 // src/components/QuickAddModal.js
 import React, { useState } from 'react'
+import { supabase } from '../lib/supabase'
 import { catColor } from '../lib/constants'
+import { useTranslation } from '../lib/i18n'
 
 const QUICK_PRODUCTS = {
   'Verdures': [
@@ -73,6 +75,7 @@ const QUICK_PRODUCTS = {
 }
 
 export default function QuickAddModal({ familyId, weekStart, sessionUserId, existingNames, onAdded, onClose }) {
+  const { t } = useTranslation()
   const [search,     setSearch]     = useState('')
   const [added,      setAdded]      = useState({})
   const [loading,    setLoading]    = useState({})
@@ -84,7 +87,6 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
   async function addProduct(name, category) {
     if (loading[name]) return
     setLoading(p => ({ ...p, [name]: true }))
-    const { supabase } = await import('../lib/supabase')
     await supabase.from('shopping_items').insert({
       family_id: familyId, name, qty: '1', unit: 'u.',
       category, week_start: weekStart, is_checked: false,
@@ -99,7 +101,6 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
     e.preventDefault()
     if (!customText.trim()) return
     setCustomLoading(true)
-    const { supabase } = await import('../lib/supabase')
     await supabase.from('shopping_items').insert({
       family_id: familyId, name: customText.trim(), qty: '1', unit: 'u.',
       category: 'Altres', week_start: weekStart, is_checked: false,
@@ -130,13 +131,13 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
         <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, margin: 0 }}>
-              Afegir a la 🛒 <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>compra</span>
+              {t('shopping.modal_title')} 🛒 <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>{t('shopping.modal_accent')}</span>
             </h3>
             <button className="btn-icon" onClick={onClose}>✕</button>
           </div>
           <input
             className="inp"
-            placeholder="🔍 Cercar producte..."
+            placeholder={t('shopping.search')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ fontSize: 14 }}
@@ -191,7 +192,7 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
           <form onSubmit={addCustom} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <input
               className="inp"
-              placeholder="✏️ Producte personalitzat..."
+              placeholder={t('shopping.custom_placeholder')}
               value={customText}
               onChange={e => setCustomText(e.target.value)}
               style={{ flex: 1, fontSize: 13 }}
@@ -202,11 +203,11 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
               disabled={customLoading || !customText.trim()}
               style={{ flexShrink: 0, padding: '9px 14px', fontSize: 13 }}
             >
-              + Afegir
+              + {t('common.add')}
             </button>
           </form>
           <button className="btn-primary" onClick={onClose} style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>
-            Fet ✓
+            {t('common.done')} ✓
           </button>
         </div>
       </div>

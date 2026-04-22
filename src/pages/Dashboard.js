@@ -4,9 +4,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { getWeekStart, formatDate } from '../lib/constants'
 import { Avatar } from '../components/ui'
+import { useTranslation } from '../lib/i18n'
 
 export default function Dashboard({ members, onNavigate }) {
   const { family } = useAuth()
+  const { t } = useTranslation()
   const [todayMeals,  setTodayMeals]  = useState([])
   const [events,      setEvents]      = useState([])
   const [tasks,       setTasks]       = useState([])
@@ -57,7 +59,9 @@ export default function Dashboard({ members, onNavigate }) {
   const sopar = todayMeals.find(m => m.meal_type === 'Sopar')
   const urgentEvents = events.filter(e => e.is_urgent)
   const nextEvents   = events.filter(e => !e.is_urgent).slice(0, 3)
-  const mealsThisWeek = 0 // could compute
+
+  const hour = today.getHours()
+  const greeting = hour < 12 ? t('dashboard.greeting_morning') : hour < 20 ? t('dashboard.greeting_afternoon') : t('dashboard.greeting_evening')
 
   return (
     <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }} className="fu">
@@ -68,7 +72,7 @@ export default function Dashboard({ members, onNavigate }) {
             {dayName}, {today.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
           <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1.1 }}>
-            Bon dia,<br /><span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Família! 🏡</span>
+            {greeting},<br /><span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Família! 🏡</span>
           </h1>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -82,30 +86,30 @@ export default function Dashboard({ members, onNavigate }) {
           <div style={{ fontSize: 20 }}>⚡</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#FF6680' }}>{e.title}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{formatDate(e.event_date)} · {e.description || 'Pendent de gestionar'}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{formatDate(e.event_date)}</div>
           </div>
-          <button className="btn-ghost" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => onNavigate('calendar')}>Veure</button>
+          <button className="btn-ghost" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => onNavigate('calendar')}>›</button>
         </div>
       ))}
 
       {/* Urgent tasks */}
-      {tasks.filter(t => t.is_urgent).map(t => (
-        <div key={t.id} style={{ background: '#FF446612', border: '1px solid #FF446635', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      {tasks.filter(task => task.is_urgent).map(task => (
+        <div key={task.id} style={{ background: '#FF446612', border: '1px solid #FF446635', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ fontSize: 20 }}>⚡</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#FF6680' }}>{t.text}</div>
-            {t.amount && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{t.amount}€ · Pendent</div>}
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#FF6680' }}>{task.text}</div>
+            {task.amount && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{task.amount}€</div>}
           </div>
-          <button className="btn-ghost" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => onNavigate('tasks')}>Veure</button>
+          <button className="btn-ghost" style={{ fontSize: 11, padding: '5px 10px' }} onClick={() => onNavigate('tasks')}>›</button>
         </div>
       ))}
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         {[
-          { label: 'Events',  val: nextEvents.length, icon: '📅', color: 'var(--purple)', action: 'calendar' },
-          { label: 'Tasques', val: tasks.length,       icon: '✅', color: 'var(--yellow)', action: 'tasks'    },
-          { label: 'Compra',  val: shopCount,          icon: '🛒', color: 'var(--teal)',   action: 'shopping' },
+          { label: t('nav.calendar'), val: nextEvents.length, icon: '📅', color: 'var(--purple)', action: 'calendar' },
+          { label: t('nav.tasks'),    val: tasks.length,       icon: '✅', color: 'var(--yellow)', action: 'tasks'    },
+          { label: t('nav.shopping'), val: shopCount,          icon: '🛒', color: 'var(--teal)',   action: 'shopping' },
         ].map(s => (
           <div key={s.label} onClick={() => onNavigate(s.action)} className="card" style={{ cursor: 'pointer', textAlign: 'center', background: s.color.replace(')', '') + '12)'.replace('var(--',''), borderColor: s.color.replace(')', '30)'), padding: '14px 8px' }}>
             <div style={{ fontSize: 22, marginBottom: 4 }}>{s.icon}</div>
@@ -118,23 +122,23 @@ export default function Dashboard({ members, onNavigate }) {
       {/* Today's menu */}
       <div className="card" style={{ background: 'var(--accent-dim)', borderColor: '#FF6B3540', cursor: 'pointer' }} onClick={() => onNavigate('menu')}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.08em' }}>🍽️ Menú d'avui</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.08em' }}>🍽️ {t('dashboard.today_menu')}</div>
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>editar →</span>
         </div>
         {dinar || sopar ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {[['☀️ Dinar', dinar], ['🌙 Sopar', sopar]].map(([label, meal]) => (
+            {[[`☀️ ${t('dashboard.lunch')}`, dinar], [`🌙 ${t('dashboard.dinner')}`, sopar]].map(([label, meal]) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ fontSize: 12, color: 'var(--muted)', width: 64, flexShrink: 0 }}>{label}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', width: 72, flexShrink: 0 }}>{label}</div>
                 {meal
                   ? <div style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}><span>{meal.emoji}</span>{meal.name}</div>
-                  : <div style={{ fontSize: 13, color: 'var(--dim)', fontStyle: 'italic' }}>Sense planificar</div>}
+                  : <div style={{ fontSize: 13, color: 'var(--dim)', fontStyle: 'italic' }}>{t('dashboard.no_meal')}</div>}
               </div>
             ))}
           </div>
         ) : (
           <div style={{ fontSize: 13, color: 'var(--dim)', textAlign: 'center', padding: '8px 0' }}>
-            Cap plat per avui · <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Afegeix-ne →</span>
+            {t('dashboard.no_meal')} · <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{t('dashboard.plan_menu')} →</span>
           </div>
         )}
       </div>
@@ -143,7 +147,7 @@ export default function Dashboard({ members, onNavigate }) {
       {nextEvents.length > 0 && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>Pròxims events</div>
+            <div style={{ fontSize: 14, fontWeight: 600 }}>{t('dashboard.next_events')}</div>
             <button onClick={() => onNavigate('calendar')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--muted)' }}>veure tot →</button>
           </div>
           {nextEvents.map(e => (

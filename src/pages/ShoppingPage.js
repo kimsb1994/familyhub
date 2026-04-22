@@ -5,9 +5,11 @@ import { useAuth } from '../lib/AuthContext'
 import { CATEGORIES, getWeekStart, catColor, mergeIngredients, groupBy } from '../lib/constants'
 import { CatDot, PageHeader, Spinner } from '../components/ui'
 import QuickAddModal from '../components/QuickAddModal'
+import { useTranslation } from '../lib/i18n'
 
 export default function ShoppingPage({ onNavigate }) {
   const { family, session } = useAuth()
+  const { t } = useTranslation()
   const [meals,        setMeals]        = useState([])
   const [manualItems,  setManualItems]  = useState([])
   const [loading,      setLoading]      = useState(true)
@@ -80,10 +82,10 @@ export default function ShoppingPage({ onNavigate }) {
   return (
     <div style={{ padding: '20px 16px' }} className="fu">
       <PageHeader
-        title="Llista de" accent="Compra"
-        subtitle={meals.length > 0 ? `Generada de ${meals.length} plats` : 'Afegeix plats al menú per auto-generar'}
+        title={t('shopping.title')} accent={t('shopping.accent')}
+        subtitle={meals.length > 0 ? `${meals.length} plats` : ''}
         action={meals.length === 0 ? (
-          <button className="btn-primary" onClick={() => onNavigate('menu')} style={{ fontSize: 12, padding: '9px 14px' }}>🍽️ Menú</button>
+          <button className="btn-primary" onClick={() => onNavigate('menu')} style={{ fontSize: 12, padding: '9px 14px' }}>🍽️ {t('nav.menu')}</button>
         ) : null}
       />
 
@@ -91,14 +93,14 @@ export default function ShoppingPage({ onNavigate }) {
       {total > 0 && (
         <div className="card" style={{ padding: '13px 15px', marginBottom: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Progrés</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{t('shopping.progress')}</span>
             <span style={{ fontSize: 14, color: 'var(--teal)', fontWeight: 700, fontFamily: 'Fraunces, serif' }}>{done}/{total}</span>
           </div>
           <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
             <div style={{ height: '100%', borderRadius: 3, background: 'linear-gradient(90deg,var(--teal),var(--accent))', width: `${total ? (done / total) * 100 : 0}%`, transition: 'width .3s' }} />
           </div>
           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5 }}>
-            {total - done} pendents · {aiIngredients.length} del menú · {manualItems.length} manuals
+            {total - done} {t('shopping.pending')} · {aiIngredients.length} {t('shopping.from_menu')} · {manualItems.length} {t('shopping.manual_items')}
           </div>
         </div>
       )}
@@ -106,17 +108,17 @@ export default function ShoppingPage({ onNavigate }) {
       {/* Add buttons */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <button className="btn-primary" onClick={() => setShowQuickAdd(true)} style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}>
-          🛒 Afegir productes
+          {t('shopping.add_products')}
         </button>
         <button className="btn-ghost" onClick={() => setShowAddForm(p => !p)} style={{ fontSize: 13, padding: '9px 14px' }}>
-          ✏️ Manual
+          {t('shopping.manual')}
         </button>
       </div>
 
       {showAddForm && (
         <div className="card" style={{ padding: '12px 14px', marginBottom: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 52px', gap: 6, marginBottom: 6 }}>
-            <input className="inp" placeholder="Nom producte" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManual()} />
+            <input className="inp" placeholder={t('shopping.product_name')} value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addManual()} />
             <input className="inp" placeholder="Qty" value={newQty} onChange={e => setNewQty(e.target.value)} style={{ textAlign: 'center' }} />
             <input className="inp" placeholder="u." value={newUnit} onChange={e => setNewUnit(e.target.value)} style={{ textAlign: 'center' }} />
           </div>
@@ -124,7 +126,7 @@ export default function ShoppingPage({ onNavigate }) {
             <select className="inp" value={newCat} onChange={e => setNewCat(e.target.value)} style={{ flex: 1 }}>
               {CATEGORIES.map(c => <option key={c}>{c}</option>)}
             </select>
-            <button className="btn-primary" onClick={addManual} disabled={!newName.trim()} style={{ padding: '9px 16px', flexShrink: 0 }}>Afegir</button>
+            <button className="btn-primary" onClick={addManual} disabled={!newName.trim()} style={{ padding: '9px 16px', flexShrink: 0 }}>{t('common.add')}</button>
           </div>
         </div>
       )}
@@ -144,8 +146,8 @@ export default function ShoppingPage({ onNavigate }) {
       {total === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 20px' }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>La llista és buida</div>
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Planifica el menú o afegeix productes manualment.</div>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{t('shopping.empty_title')}</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>{t('shopping.empty_desc')}</div>
         </div>
       )}
 

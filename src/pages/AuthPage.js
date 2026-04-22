@@ -2,8 +2,9 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { MEMBER_COLORS } from '../lib/constants'
+import { useTranslation } from '../lib/i18n'
 
-function GoogleButton({ onClick, loading }) {
+function GoogleButton({ onClick, loading, label }) {
   return (
     <button
       type="button"
@@ -22,22 +23,13 @@ function GoogleButton({ onClick, loading }) {
         <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
         <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
       </svg>
-      Continuar amb Google
+      {label}
     </button>
   )
 }
 
-function Divider() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
-      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      <span style={{ fontSize: 11, color: 'var(--dim)' }}>o amb correu</span>
-      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-    </div>
-  )
-}
-
 export default function AuthPage({ onAuth, existingUserId }) {
+  const { t } = useTranslation()
   const [mode,     setMode]     = useState(existingUserId ? 'create-family' : 'login')
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
@@ -109,37 +101,44 @@ export default function AuthPage({ onAuth, existingUserId }) {
     onAuth(session.session)
   }
 
-  const input = (value, onChange, placeholder, type = 'text') => (
+  const inp = (value, onChange, placeholder, type = 'text') => (
     <input className="inp" type={type} placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} required style={{ marginBottom: 10 }} />
+  )
+
+  const Divider = () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0' }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      <span style={{ fontSize: 11, color: 'var(--dim)' }}>{t('auth.or_email')}</span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    </div>
   )
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 380 }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ fontSize: 52, marginBottom: 8 }}>🏡</div>
           <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 700, letterSpacing: '-.03em' }}>
             Family<span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Hub</span>
           </h1>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>Gestiona la vida familiar fàcilment</p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{t('auth.subtitle')}</p>
         </div>
 
         {/* ── Login ── */}
         {mode === 'login' && (
           <form onSubmit={handleAuth}>
             <div className="card" style={{ padding: 24 }}>
-              <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 18 }}>Iniciar sessió</h2>
-              <GoogleButton onClick={handleGoogleAuth} loading={loading} />
+              <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 18 }}>{t('auth.login')}</h2>
+              <GoogleButton onClick={handleGoogleAuth} loading={loading} label={t('auth.google')} />
               <Divider />
-              {input(email, setEmail, 'Correu electrònic', 'email')}
-              {input(password, setPassword, 'Contrasenya', 'password')}
+              {inp(email, setEmail, t('auth.email'), 'email')}
+              {inp(password, setPassword, t('auth.password'), 'password')}
               {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{error}</div>}
               <button className="btn-primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
-                {loading ? 'Entrant...' : 'Entrar amb correu'}
+                {loading ? t('auth.entering') : t('auth.enter')}
               </button>
               <button type="button" className="btn-ghost" onClick={() => setMode('register')} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
-                Crear compte nou
+                {t('auth.new_account')}
               </button>
             </div>
           </form>
@@ -149,17 +148,17 @@ export default function AuthPage({ onAuth, existingUserId }) {
         {mode === 'register' && (
           <form onSubmit={handleAuth}>
             <div className="card" style={{ padding: 24 }}>
-              <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 18 }}>Crear compte</h2>
-              <GoogleButton onClick={handleGoogleAuth} loading={loading} />
+              <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 18 }}>{t('auth.register')}</h2>
+              <GoogleButton onClick={handleGoogleAuth} loading={loading} label={t('auth.google')} />
               <Divider />
-              {input(email, setEmail, 'Correu electrònic', 'email')}
-              {input(password, setPassword, 'Contrasenya (mínim 6 car.)', 'password')}
+              {inp(email, setEmail, t('auth.email'), 'email')}
+              {inp(password, setPassword, t('auth.password_hint'), 'password')}
               {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{error}</div>}
               <button className="btn-primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
-                {loading ? 'Creant compte...' : 'Continuar →'}
+                {loading ? t('auth.entering') : t('auth.continue')}
               </button>
               <button type="button" className="btn-ghost" onClick={() => setMode('login')} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
-                Ja tinc compte
+                {t('auth.have_account')}
               </button>
             </div>
           </form>
@@ -168,26 +167,26 @@ export default function AuthPage({ onAuth, existingUserId }) {
         {/* ── Create family ── */}
         {mode === 'create-family' && (
           <div className="card" style={{ padding: 24 }}>
-            <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 4 }}>Configurar família</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>Compte creat! Ara configura la teva família.</p>
+            <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{t('auth.setup_family')}</h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 18 }}>{t('auth.setup_desc')}</p>
 
-            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>El teu nom</label>
-            <input className="inp" placeholder="Ex: Quim" value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 14 }} />
+            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>{t('auth.your_name')}</label>
+            <input className="inp" placeholder={t('auth.name_placeholder')} value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 14 }} />
 
-            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Color d'avatar</label>
+            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>{t('auth.avatar_color')}</label>
             <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
               {MEMBER_COLORS.map(c => (
-                <div key={c} onClick={() => setColor(c)} style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c ? `3px solid white` : '3px solid transparent', transition: 'border .15s' }} />
+                <div key={c} onClick={() => setColor(c)} style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c ? '3px solid white' : '3px solid transparent', transition: 'border .15s' }} />
               ))}
             </div>
 
             {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{error}</div>}
 
             <form onSubmit={handleCreateFamily}>
-              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Nom de la família</label>
-              <input className="inp" placeholder="Ex: Família Puig" value={famName} onChange={e => setFamName(e.target.value)} style={{ marginBottom: 12 }} />
+              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>{t('auth.family_name')}</label>
+              <input className="inp" placeholder={t('auth.family_placeholder')} value={famName} onChange={e => setFamName(e.target.value)} style={{ marginBottom: 12 }} />
               <button className="btn-primary" type="submit" disabled={loading || !name || !famName} style={{ width: '100%', justifyContent: 'center' }}>
-                {loading ? 'Creant...' : '✓ Crear família'}
+                {loading ? t('auth.entering') : t('auth.create_family')}
               </button>
             </form>
 
@@ -198,10 +197,10 @@ export default function AuthPage({ onAuth, existingUserId }) {
             </div>
 
             <form onSubmit={handleJoinFamily}>
-              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Unir-se a família existent</label>
-              <input className="inp" placeholder="Codi de família (UUID)" value={famCode} onChange={e => setFamCode(e.target.value)} style={{ marginBottom: 8 }} />
+              <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>{t('auth.join_family')}</label>
+              <input className="inp" placeholder={t('auth.family_code')} value={famCode} onChange={e => setFamCode(e.target.value)} style={{ marginBottom: 8 }} />
               <button className="btn-ghost" type="submit" disabled={loading || !name || !famCode} style={{ width: '100%', justifyContent: 'center' }}>
-                Unir-se
+                {t('auth.join')}
               </button>
             </form>
           </div>

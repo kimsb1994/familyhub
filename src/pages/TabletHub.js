@@ -210,7 +210,7 @@ function ShoppingPanel({ familyId, paneId }) {
         </div>
       )}
       {total === 0 && <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'center', padding: '12px 0' }}>Cap producte</div>}
-      {Object.entries(grouped).slice(0, 4).map(([cat, items]) => (
+      {Object.entries(grouped).map(([cat, items]) => (
         <div key={cat} style={{ marginBottom: 6 }}>
           <div style={{ fontSize: 9, fontWeight: 700, color: catColor(cat), textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>{cat}</div>
           {items.map((item, i) => {

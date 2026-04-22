@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { DAYS_SHORT, DAYS_FULL, MEAL_TYPES, CATEGORIES, getWeekStart, catColor } from '../lib/constants'
 import { PageHeader, IngredientList, Spinner } from '../components/ui'
+import { useTranslation } from '../lib/i18n'
 
 // ── Ingredient form ───────────────────────────────────────────────────────────
 function IngredientForm({ ingredients, setIngredients }) {
@@ -54,6 +55,7 @@ function IngredientForm({ ingredients, setIngredients }) {
 // ── Meal modal (create / edit) ────────────────────────────────────────────────
 function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDeleted, onClose }) {
   const { session } = useAuth()
+  const { t } = useTranslation()
   const [name,  setName]  = useState(existing?.name  || '')
   const [emoji, setEmoji] = useState(existing?.emoji || '🍽️')
   const [time,  setTime]  = useState(existing?.time_minutes || '')
@@ -116,7 +118,7 @@ function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDe
         <div className="modal-drag" />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>
-            {existing ? 'Editar' : 'Nou'} {mealType} · {day}
+            {existing ? t('menu.edit_meal') : t('menu.new_meal')} · {day}
           </h3>
           {existing && (
             <button className="btn-icon" onClick={deleteMeal} disabled={deleting} style={{ color: 'var(--red)' }}>
@@ -127,7 +129,7 @@ function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDe
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <input className="inp" style={{ width: 52, textAlign: 'center', fontSize: 22, padding: '7px 4px', flexShrink: 0 }} value={emoji} onChange={e => setEmoji(e.target.value)} />
-          <input className="inp" placeholder="Nom del plat..." value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} />
+          <input className="inp" placeholder={t('menu.meal_name')} value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
@@ -149,9 +151,9 @@ function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDe
 
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
           <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '✓ Crear plat'}
+            {saving ? <Spinner size={16} color="#fff" /> : existing ? `💾 ${t('common.save')}` : `✓ ${t('common.add')}`}
           </button>
-          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+          <button className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
         </div>
       </div>
     </div>
@@ -160,6 +162,7 @@ function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDe
 
 // ── Meal detail (view) ────────────────────────────────────────────────────────
 function MealDetail({ meal, day, onEdit, onClose }) {
+  const { t } = useTranslation()
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" onClick={e => e.stopPropagation()}>
@@ -191,8 +194,8 @@ function MealDetail({ meal, day, onEdit, onClose }) {
         )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-          <button className="btn-primary" onClick={onEdit} style={{ flex: 1, justifyContent: 'center' }}>✎ Editar plat</button>
-          <button className="btn-ghost" onClick={onClose}>Tancar</button>
+          <button className="btn-primary" onClick={onEdit} style={{ flex: 1, justifyContent: 'center' }}>✎ {t('menu.edit_meal')}</button>
+          <button className="btn-ghost" onClick={onClose}>{t('common.close')}</button>
         </div>
       </div>
     </div>
@@ -202,6 +205,7 @@ function MealDetail({ meal, day, onEdit, onClose }) {
 // ── Main Menu Page ────────────────────────────────────────────────────────────
 export default function MenuPage() {
   const { family } = useAuth()
+  const { t } = useTranslation()
   const [meals,     setMeals]     = useState([])
   const [activeDay, setActiveDay] = useState(DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1])
   const [modal,     setModal]     = useState(null)
@@ -240,7 +244,7 @@ export default function MenuPage() {
 
   return (
     <div style={{ padding: '20px 16px' }} className="fu">
-      <PageHeader title="Menú" accent="Setmanal" subtitle={`${mealsCount} plats planificats`} />
+      <PageHeader title={t('menu.title')} accent={t('menu.accent')} subtitle={`${mealsCount} plats`} />
 
       {/* Day pills */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 4 }}>
@@ -301,7 +305,7 @@ export default function MenuPage() {
               ) : (
                 <div className="meal-slot empty" onClick={() => setModal({ type: 'add', day: activeDay, mealType: meal })} style={{ justifyContent: 'center', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: 20, opacity: .35 }}>+</span>
-                  <span style={{ fontSize: 10, color: 'var(--dim)' }}>Toca per afegir {meal.toLowerCase()}</span>
+                  <span style={{ fontSize: 10, color: 'var(--dim)' }}>{t('menu.new_day')}</span>
                 </div>
               )}
             </div>
@@ -319,9 +323,9 @@ export default function MenuPage() {
               <div style={{ width: 30, fontSize: 10, fontWeight: 700, color: isAct ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }}>{DAYS_SHORT[i].toUpperCase()}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 {dn ? <div style={{ fontSize: 12, fontWeight: 500, display: 'flex', gap: 5, alignItems: 'center' }}><span>{dn.emoji}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dn.name}</span></div>
-                    : <div style={{ fontSize: 11, color: 'var(--dim)' }}>☀️ Dinar pendent</div>}
+                    : <div style={{ fontSize: 11, color: 'var(--dim)' }}>☀️ {t('menu.lunch')}</div>}
                 {sp ? <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 5, alignItems: 'center' }}><span>{sp.emoji}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sp.name}</span></div>
-                    : <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>🌙 Sopar pendent</div>}
+                    : <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>🌙 {t('menu.dinner')}</div>}
               </div>
               <div style={{ fontSize: 11, color: 'var(--dim)' }}>{[dn, sp].filter(Boolean).length}/2</div>
             </div>

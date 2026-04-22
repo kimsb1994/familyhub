@@ -1,5 +1,6 @@
 // src/components/BottomNav.js
 import React from 'react'
+import { useTranslation } from '../lib/i18n'
 
 const ICONS = {
   home: (a) => (
@@ -34,16 +35,10 @@ const ICONS = {
   ),
 }
 
-const NAV_ITEMS = [
-  { id: 'home',     label: 'Inici'     },
-  { id: 'calendar', label: 'Calendari' },
-  { id: 'menu',     label: 'Menú'      },
-  { id: 'shopping', label: 'Compra'    },
-  { id: 'tasks',    label: 'Tasques'   },
-  { id: 'profile',  label: 'Família'   },
-]
+const NAV_IDS = ['home', 'calendar', 'menu', 'shopping', 'tasks', 'profile']
 
 export default function BottomNav({ current, onChange, badges = {} }) {
+  const { t } = useTranslation()
   return (
     <nav style={{
       position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
@@ -54,13 +49,13 @@ export default function BottomNav({ current, onChange, badges = {} }) {
       display: 'flex', justifyContent: 'space-around', alignItems: 'center',
       zIndex: 100,
     }}>
-      {NAV_ITEMS.map(n => {
-        const active = current === n.id
-        const badge  = badges[n.id]
+      {NAV_IDS.map(id => {
+        const active = current === id
+        const badge  = badges[id]
         return (
-          <button key={n.id} className={`nav-btn ${active ? 'active' : ''}`} onClick={() => onChange(n.id)}>
-            {ICONS[n.id](active)}
-            <span>{n.label}</span>
+          <button key={id} className={`nav-btn ${active ? 'active' : ''}`} onClick={() => onChange(id)}>
+            {ICONS[id](active)}
+            <span>{t(`nav.${id}`)}</span>
             {badge > 0 && (
               <div style={{ position:'absolute', top:4, right:4, background:'var(--accent)', color:'#fff', borderRadius:10, fontSize:8, fontWeight:700, padding:'1px 4px', lineHeight:1.6 }}>
                 {badge}

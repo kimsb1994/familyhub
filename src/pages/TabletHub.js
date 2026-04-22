@@ -199,7 +199,7 @@ function ShoppingPanel({ familyId }) {
   }
 
   return (
-    <Panel title="Llista de" accent="compra" icon="🛒">
+    <Panel title="Llista de" accent="compra" icon="🛒" style={{ height: '100%' }}>
       <form onSubmit={addItem} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
         <input
           className="inp"
@@ -270,7 +270,7 @@ function EventsPanel({ familyId, members }) {
   }, [load, familyId])
 
   return (
-    <Panel title="Pròxims" accent="events" icon="📅">
+    <Panel title="Pròxims" accent="events" icon="📅" style={{ height: '100%' }}>
       {events.length === 0 && <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'center', padding: '12px 0' }}>Cap event proper</div>}
       {events.map(e => {
         const d = new Date(e.event_date + 'T12:00')
@@ -333,7 +333,7 @@ function TasksPanel({ familyId }) {
   }
 
   return (
-    <Panel title="Tasques" accent="& imprevistos" icon="✅">
+    <Panel title="Tasques" accent="& imprevistos" icon="✅" style={{ height: '100%' }}>
       <form onSubmit={addTask} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
         <input
           className="inp"
@@ -474,7 +474,7 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
   const selLabel = new Date(selDateStr + 'T12:00').toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '14px 16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '14px 16px', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', boxSizing: 'border-box' }}>
 
       {/* Month header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -576,6 +576,56 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
   )
 }
 
+// ── Pane navigation ────────────────────────────────────────────────────────────
+const PANE_SECTIONS = [
+  { id: 'calendar', icon: '📅', label: 'Calendari' },
+  { id: 'menu',     icon: '🍽️', label: 'Menú'      },
+  { id: 'shopping', icon: '🛒', label: 'Compra'    },
+  { id: 'tasks',    icon: '✅', label: 'Tasques'   },
+  { id: 'events',   icon: '📋', label: 'Events'    },
+]
+
+function PaneNav({ current, onChange }) {
+  return (
+    <div style={{ display: 'flex', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 4, gap: 2, flexShrink: 0 }}>
+      {PANE_SECTIONS.map(s => (
+        <button
+          key={s.id}
+          onClick={() => onChange(s.id)}
+          style={{
+            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            padding: '7px 4px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: current === s.id ? 'var(--accent)' : 'transparent',
+            color: current === s.id ? '#fff' : 'var(--muted)',
+            transition: 'background .15s, color .15s',
+          }}
+        >
+          <span style={{ fontSize: 15 }}>{s.icon}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.03em' }}>{s.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Pane: independent navigable half ──────────────────────────────────────────
+function TabletPane({ familyId, members, sessionUserId, defaultSection }) {
+  const [section, setSection] = useState(defaultSection)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%', overflow: 'hidden', minHeight: 0 }}>
+      <PaneNav current={section} onChange={setSection} />
+      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        {section === 'calendar' && <TabletCalendar familyId={familyId} members={members} sessionUserId={sessionUserId} />}
+        {section === 'menu'     && <MenuPanel     familyId={familyId} />}
+        {section === 'shopping' && <ShoppingPanel familyId={familyId} />}
+        {section === 'tasks'    && <TasksPanel    familyId={familyId} />}
+        {section === 'events'   && <EventsPanel   familyId={familyId} members={members} />}
+      </div>
+    </div>
+  )
+}
+
 // ── Kiosk overlay ──────────────────────────────────────────────────────────────
 function KioskOverlay({ onActivate }) {
   return (
@@ -602,50 +652,48 @@ export default function TabletHub({ members }) {
   const showOverlay = supportsFullscreen && !isFullscreen
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: 'var(--bg)', display: 'grid', gridTemplateRows: 'auto 1fr', gap: 0, overflow: 'hidden', padding: '14px 18px', boxSizing: 'border-box' }}>
+    <div style={{ width: '100vw', height: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '12px 16px', boxSizing: 'border-box', gap: 10 }}>
 
       {showOverlay && <KioskOverlay onActivate={enterFullscreen} />}
 
       {/* Top bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 32 }}>🏡</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 28 }}>🏡</div>
           <div>
-            <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
+            <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
               Family<span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Hub</span>
             </h1>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{family.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{family.name}</div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {members.map(m => (
-              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Avatar member={m} size={32} />
-                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{m.name}</span>
-              </div>
-            ))}
-          </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {members.map(m => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Avatar member={m} size={28} />
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>{m.name}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Main layout: calendar (left) + 2x2 panels (right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, overflow: 'hidden', minHeight: 0 }}>
+      {/* Divider */}
+      <div style={{ height: 1, background: 'var(--border)', flexShrink: 0 }} />
 
-        {/* Left: interactive calendar */}
-        <TabletCalendar
+      {/* Two independent panes */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <TabletPane
           familyId={family.id}
           members={members}
           sessionUserId={session?.user?.id}
+          defaultSection="calendar"
         />
-
-        {/* Right: 2x2 panels grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 12, minHeight: 0, overflow: 'hidden' }}>
-          <MenuPanel     familyId={family.id} />
-          <ShoppingPanel familyId={family.id} />
-          <EventsPanel   familyId={family.id} members={members} />
-          <TasksPanel    familyId={family.id} />
-        </div>
+        <TabletPane
+          familyId={family.id}
+          members={members}
+          sessionUserId={session?.user?.id}
+          defaultSection="tasks"
+        />
       </div>
     </div>
   )

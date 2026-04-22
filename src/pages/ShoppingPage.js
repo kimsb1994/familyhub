@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { CATEGORIES, getWeekStart, catColor, mergeIngredients, groupBy } from '../lib/constants'
 import { CatDot, PageHeader, Spinner } from '../components/ui'
+import QuickAddModal from '../components/QuickAddModal'
 
 export default function ShoppingPage({ onNavigate }) {
   const { family, session } = useAuth()
@@ -15,6 +16,7 @@ export default function ShoppingPage({ onNavigate }) {
   const [newUnit,      setNewUnit]      = useState('u.')
   const [newCat,       setNewCat]       = useState('Altres')
   const [showAddForm,  setShowAddForm]  = useState(false)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
 
   const weekStart = getWeekStart()
 
@@ -101,10 +103,15 @@ export default function ShoppingPage({ onNavigate }) {
         </div>
       )}
 
-      {/* Add manual toggle */}
-      <button className="btn-ghost" onClick={() => setShowAddForm(p => !p)} style={{ width: '100%', justifyContent: 'center', marginBottom: 12 }}>
-        {showAddForm ? '↑ Amagar formulari' : '+ Afegir producte manual'}
-      </button>
+      {/* Add buttons */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <button className="btn-primary" onClick={() => setShowQuickAdd(true)} style={{ flex: 1, justifyContent: 'center', fontSize: 13 }}>
+          🛒 Afegir productes
+        </button>
+        <button className="btn-ghost" onClick={() => setShowAddForm(p => !p)} style={{ fontSize: 13, padding: '9px 14px' }}>
+          ✏️ Manual
+        </button>
+      </div>
 
       {showAddForm && (
         <div className="card" style={{ padding: '12px 14px', marginBottom: 14 }}>
@@ -120,6 +127,17 @@ export default function ShoppingPage({ onNavigate }) {
             <button className="btn-primary" onClick={addManual} disabled={!newName.trim()} style={{ padding: '9px 16px', flexShrink: 0 }}>Afegir</button>
           </div>
         </div>
+      )}
+
+      {showQuickAdd && (
+        <QuickAddModal
+          familyId={family.id}
+          weekStart={weekStart}
+          sessionUserId={session?.user?.id}
+          existingNames={allItems.map(i => i.name)}
+          onAdded={load}
+          onClose={() => setShowQuickAdd(false)}
+        />
       )}
 
       {/* Empty */}

@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import { getWeekStart, mergeIngredients, groupBy, catColor, DAYS_FULL } from '../lib/constants'
 import { Avatar, Spinner } from '../components/ui'
 import { useKioskMode } from '../hooks/useKioskMode'
+import QuickAddModal from '../components/QuickAddModal'
 
 const EVENT_COLORS = ['#FF6B35','#00C9A7','#FFD166','#8B5CF6','#06B6D4','#F43F5E','#84CC16']
 
@@ -161,8 +162,7 @@ function ShoppingPanel({ familyId, paneId }) {
   const [meals, setMeals] = useState([])
   const [manualItems, setManualItems] = useState([])
   const [checked, setChecked] = useState({})
-  const [newItem, setNewItem] = useState('')
-  const [adding, setAdding] = useState(false)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
   const weekStart = getWeekStart()
 
   const load = useCallback(async () => {
@@ -188,28 +188,16 @@ function ShoppingPanel({ familyId, paneId }) {
   const total = allItems.length
   const done = allItems.filter(i => i._ai ? !!checked[i.name?.toLowerCase()] : i.is_checked).length
 
-  async function addItem(e) {
-    e.preventDefault()
-    if (!newItem.trim()) return
-    setAdding(true)
-    await supabase.from('shopping_items').insert({ family_id: familyId, name: newItem.trim(), week_start: weekStart, is_checked: false })
-    setNewItem('')
-    setAdding(false)
-    load()
-  }
-
   return (
+    <>
     <Panel title="Llista de" accent="compra" icon="🛒" style={{ height: '100%' }}>
-      <form onSubmit={addItem} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <input
-          className="inp"
-          placeholder="Afegir producte..."
-          value={newItem}
-          onChange={e => setNewItem(e.target.value)}
-          style={{ flex: 1, fontSize: 13, padding: '6px 10px' }}
-        />
-        <button className="btn-primary" type="submit" disabled={adding || !newItem.trim()} style={{ padding: '6px 12px', fontSize: 13, flexShrink: 0 }}>+</button>
-      </form>
+      <button
+        className="btn-primary"
+        onClick={() => setShowQuickAdd(true)}
+        style={{ width: '100%', justifyContent: 'center', fontSize: 13, marginBottom: 8 }}
+      >
+        🛒 Afegir productes
+      </button>
       {total > 0 && (
         <div style={{ marginBottom: 6 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
@@ -244,6 +232,16 @@ function ShoppingPanel({ familyId, paneId }) {
         </div>
       ))}
     </Panel>
+    {showQuickAdd && (
+      <QuickAddModal
+        familyId={familyId}
+        weekStart={weekStart}
+        existingNames={allItems.map(i => i.name)}
+        onAdded={load}
+        onClose={() => setShowQuickAdd(false)}
+      />
+    )}
+    </>
   )
 }
 

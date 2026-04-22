@@ -123,6 +123,9 @@ const T = {
     'shopping.modal_title': 'Afegir a la',
     'shopping.modal_accent':'compra',
     'shopping.search':      '🔍 Cercar producte...',
+    'shopping.not_found':   'No s\'ha trobat',
+    'shopping.n_dishes':    'plats',
+    'shopping.manual_tag':  'manual',
 
     // Tasks
     'tasks.title':          'Tasques',
@@ -348,6 +351,9 @@ const T = {
     'shopping.modal_title': 'Añadir a la',
     'shopping.modal_accent':'compra',
     'shopping.search':      '🔍 Buscar producto...',
+    'shopping.not_found':   'No se ha encontrado',
+    'shopping.n_dishes':    'platos',
+    'shopping.manual_tag':  'manual',
 
     'tasks.title':          'Tareas',
     'tasks.accent':         '& Imprevistos',
@@ -565,6 +571,9 @@ const T = {
     'shopping.modal_title': 'Add to',
     'shopping.modal_accent':'shopping list',
     'shopping.search':      '🔍 Search product...',
+    'shopping.not_found':   'Not found',
+    'shopping.n_dishes':    'dishes',
+    'shopping.manual_tag':  'manual',
 
     'tasks.title':          'Tasks',
     'tasks.accent':         '& Incidents',

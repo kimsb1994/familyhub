@@ -118,7 +118,7 @@ export default function AuthPage({ onAuth, existingUserId }) {
       <div style={{ width: '100%', maxWidth: 380 }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div style={{ fontSize: 52, marginBottom: 8 }}>🏡</div>
-          <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 700, letterSpacing: '-.03em' }}>
+          <h1 translate="no" style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 700, letterSpacing: '-.03em' }}>
             Family<span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Hub</span>
           </h1>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{t('auth.subtitle')}</p>

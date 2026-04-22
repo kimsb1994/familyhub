@@ -182,7 +182,7 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
           })}
           {q && filteredCats.length === 0 && (
             <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13 }}>
-              No s'ha trobat "{search}"
+              {t('shopping.not_found')} "{search}"
             </div>
           )}
         </div>

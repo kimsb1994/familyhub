@@ -83,7 +83,7 @@ export default function ShoppingPage({ onNavigate }) {
     <div style={{ padding: '20px 16px' }} className="fu">
       <PageHeader
         title={t('shopping.title')} accent={t('shopping.accent')}
-        subtitle={meals.length > 0 ? `${meals.length} plats` : ''}
+        subtitle={meals.length > 0 ? `${meals.length} ${t('shopping.n_dishes')}` : ''}
         action={meals.length === 0 ? (
           <button className="btn-primary" onClick={() => onNavigate('menu')} style={{ fontSize: 12, padding: '9px 14px' }}>🍽️ {t('nav.menu')}</button>
         ) : null}
@@ -175,8 +175,8 @@ export default function ShoppingPage({ onNavigate }) {
                     <span style={{ fontSize: 14, fontWeight: 500, textDecoration: isDone ? 'line-through' : 'none', color: isDone ? 'var(--dim)' : 'var(--text)' }}>
                       {item.name}
                     </span>
-                    {item.mealNames?.length > 1 && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>×{item.mealNames.length} plats</span>}
-                    {!item._isAI && <span className="tag" style={{ background: 'var(--purple-dim)', color: 'var(--purple)', marginLeft: 6 }}>manual</span>}
+                    {item.mealNames?.length > 1 && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6 }}>×{item.mealNames.length} {t('shopping.n_dishes')}</span>}
+                    {!item._isAI && <span className="tag" style={{ background: 'var(--purple-dim)', color: 'var(--purple)', marginLeft: 6 }}>{t('shopping.manual_tag')}</span>}
                   </div>
                   <span style={{ fontSize: 13, color: isDone ? 'var(--dim)' : 'var(--muted)', fontWeight: 500 }}>{item.qty} {item.unit}</span>
                   {!item._isAI && (

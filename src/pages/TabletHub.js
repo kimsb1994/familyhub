@@ -639,7 +639,7 @@ function KioskOverlay({ onActivate }) {
   return (
     <div onClick={onActivate} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,20,0.92)', backdropFilter: 'blur(8px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 9999, cursor: 'pointer', gap: 20, userSelect: 'none' }}>
       <div style={{ fontSize: 72 }}>🏡</div>
-      <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 700, letterSpacing: '-.03em', margin: 0 }}>
+      <h1 translate="no" style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 700, letterSpacing: '-.03em', margin: 0 }}>
         Family<span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Hub</span>
       </h1>
       <div style={{ fontSize: 16, color: 'var(--muted)', marginTop: 4 }}>Toca per activar el mode quiosc</div>
@@ -669,7 +669,7 @@ export default function TabletHub({ members }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ fontSize: 28 }}>🏡</div>
           <div>
-            <h1 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
+            <h1 translate="no" style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, letterSpacing: '-.03em', lineHeight: 1 }}>
               Family<span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>Hub</span>
             </h1>
             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{family.name}</div>

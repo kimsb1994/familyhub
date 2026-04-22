@@ -1,5 +1,5 @@
 // src/pages/TabletHub.js
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { getWeekStart, mergeIngredients, groupBy, catColor, DAYS_FULL } from '../lib/constants'
@@ -85,7 +85,7 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, onS
 }
 
 // ── Menu panel ─────────────────────────────────────────────────────────────────
-function MenuPanel({ familyId }) {
+function MenuPanel({ familyId, paneId }) {
   const [meals,  setMeals]  = useState([])
   const [modal,  setModal]  = useState(null)
   const dayName   = DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
@@ -99,7 +99,7 @@ function MenuPanel({ familyId }) {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('hub-meals')
+    const ch = supabase.channel(`hub-meals-${paneId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'meals', filter: `family_id=eq.${familyId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
@@ -157,7 +157,7 @@ function MenuPanel({ familyId }) {
 }
 
 // ── Shopping panel ─────────────────────────────────────────────────────────────
-function ShoppingPanel({ familyId }) {
+function ShoppingPanel({ familyId, paneId }) {
   const [meals, setMeals] = useState([])
   const [manualItems, setManualItems] = useState([])
   const [checked, setChecked] = useState({})
@@ -176,7 +176,7 @@ function ShoppingPanel({ familyId }) {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('hub-shop')
+    const ch = supabase.channel(`hub-shop-${paneId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items', filter: `family_id=eq.${familyId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
@@ -248,7 +248,7 @@ function ShoppingPanel({ familyId }) {
 }
 
 // ── Events panel ───────────────────────────────────────────────────────────────
-function EventsPanel({ familyId, members }) {
+function EventsPanel({ familyId, members, paneId }) {
   const [events, setEvents] = useState([])
 
   const load = useCallback(async () => {
@@ -263,7 +263,7 @@ function EventsPanel({ familyId, members }) {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('hub-events')
+    const ch = supabase.channel(`hub-events-${paneId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `family_id=eq.${familyId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
@@ -296,7 +296,7 @@ function EventsPanel({ familyId, members }) {
 }
 
 // ── Tasks panel ────────────────────────────────────────────────────────────────
-function TasksPanel({ familyId }) {
+function TasksPanel({ familyId, paneId }) {
   const [tasks,   setTasks]   = useState([])
   const [newText, setNewText] = useState('')
   const [adding,  setAdding]  = useState(false)
@@ -311,7 +311,7 @@ function TasksPanel({ familyId }) {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('hub-tasks')
+    const ch = supabase.channel(`hub-tasks-${paneId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `family_id=eq.${familyId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
@@ -431,7 +431,7 @@ function TabletEventModal({ existing, defaultDate, familyId, members, sessionUse
 }
 
 // ── Tablet calendar (left half) ────────────────────────────────────────────────
-function TabletCalendar({ familyId, members, sessionUserId }) {
+function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
   const [events,  setEvents]  = useState([])
   const [month,   setMonth]   = useState(new Date())
   const [selDay,  setSelDay]  = useState(null)
@@ -451,7 +451,7 @@ function TabletCalendar({ familyId, members, sessionUserId }) {
 
   useEffect(() => {
     load()
-    const ch = supabase.channel('hub-cal')
+    const ch = supabase.channel(`hub-cal-${paneId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `family_id=eq.${familyId}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
@@ -585,23 +585,27 @@ const PANE_SECTIONS = [
   { id: 'events',   icon: '📋', label: 'Events'    },
 ]
 
-function PaneNav({ current, onChange }) {
+function PaneNav({ current, onChange, side }) {
   return (
-    <div style={{ display: 'flex', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 4, gap: 2, flexShrink: 0 }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 14, padding: 4, gap: 2, flexShrink: 0, width: 62,
+    }}>
       {PANE_SECTIONS.map(s => (
         <button
           key={s.id}
           onClick={() => onChange(s.id)}
           style={{
-            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            padding: '7px 4px', borderRadius: 10, border: 'none', cursor: 'pointer',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            padding: '10px 4px', borderRadius: 10, border: 'none', cursor: 'pointer',
             background: current === s.id ? 'var(--accent)' : 'transparent',
             color: current === s.id ? '#fff' : 'var(--muted)',
             transition: 'background .15s, color .15s',
           }}
         >
-          <span style={{ fontSize: 15 }}>{s.icon}</span>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.03em' }}>{s.label}</span>
+          <span style={{ fontSize: 18 }}>{s.icon}</span>
+          <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: '.03em', textAlign: 'center' }}>{s.label}</span>
         </button>
       ))}
     </div>
@@ -609,19 +613,25 @@ function PaneNav({ current, onChange }) {
 }
 
 // ── Pane: independent navigable half ──────────────────────────────────────────
-function TabletPane({ familyId, members, sessionUserId, defaultSection }) {
+function TabletPane({ familyId, members, sessionUserId, defaultSection, side }) {
   const [section, setSection] = useState(defaultSection)
+  const paneId = useRef(`p-${Math.random().toString(36).slice(2, 7)}`).current
+
+  const content = (
+    <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      {section === 'calendar' && <TabletCalendar familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
+      {section === 'menu'     && <MenuPanel     familyId={familyId} paneId={paneId} />}
+      {section === 'shopping' && <ShoppingPanel familyId={familyId} paneId={paneId} />}
+      {section === 'tasks'    && <TasksPanel    familyId={familyId} paneId={paneId} />}
+      {section === 'events'   && <EventsPanel   familyId={familyId} members={members} paneId={paneId} />}
+    </div>
+  )
+
+  const nav = <PaneNav current={section} onChange={setSection} side={side} />
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%', overflow: 'hidden', minHeight: 0 }}>
-      <PaneNav current={section} onChange={setSection} />
-      <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        {section === 'calendar' && <TabletCalendar familyId={familyId} members={members} sessionUserId={sessionUserId} />}
-        {section === 'menu'     && <MenuPanel     familyId={familyId} />}
-        {section === 'shopping' && <ShoppingPanel familyId={familyId} />}
-        {section === 'tasks'    && <TasksPanel    familyId={familyId} />}
-        {section === 'events'   && <EventsPanel   familyId={familyId} members={members} />}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'row', gap: 8, height: '100%', overflow: 'hidden', minHeight: 0 }}>
+      {side === 'left' ? <>{nav}{content}</> : <>{content}{nav}</>}
     </div>
   )
 }
@@ -687,12 +697,14 @@ export default function TabletHub({ members }) {
           members={members}
           sessionUserId={session?.user?.id}
           defaultSection="calendar"
+          side="left"
         />
         <TabletPane
           familyId={family.id}
           members={members}
           sessionUserId={session?.user?.id}
           defaultSection="tasks"
+          side="right"
         />
       </div>
     </div>

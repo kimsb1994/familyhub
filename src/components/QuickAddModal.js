@@ -46,7 +46,22 @@ const QUICK_PRODUCTS = {
     'Salsa Worcester','Tabasco','Salsa de tomat','Brou de pollastre',
   ],
   'Oli/Greixos': [
-    'Oli d\'oliva verge extra','Oli de girasol','Mantequilla','Margarina',
+    'Oli d\'oliva verge extra','Oli de girasol','Mantega','Margarina',
+  ],
+  'Llar i neteja': [
+    'Paper de vàter','Paper de cuina','Tovalloles de paper',
+    'Pastilles rentavaixelles','Detergent rentavaixelles líquid',
+    'Detergent rentadora','Suavitzant','Lleixiu','Netejador multiús',
+    'Netejador bany','Netejador vidres','Fregall','Esponja',
+    'Bosses escombraries petites','Bosses escombraries grans',
+    'Film transparent','Paper d\'alumini','Bossetes zip',
+    'Piles AA','Piles AAA','Bombetes','Veles',
+  ],
+  'Higiene personal': [
+    'Gel de dutxa','Xampú','Condicionador','Sabó de mans',
+    'Pasta de dents','Raspall de dents','Fil dental','Enjuagatori bucal',
+    'Desodorant','Crema hidratant','Crema solar','Maquinetes d\'afaitar',
+    'Compreses','Tampons','Paper higiènic humit','Cotó fluix',
   ],
   'Altres': [
     'Sucre','Sucre morè','Mel','Xocolata negra','Xocolata amb llet',
@@ -54,16 +69,15 @@ const QUICK_PRODUCTS = {
     'Suc de taronja','Suc de poma','Aigua mineral','Cervesa',
     'Vi negre','Vi blanc','Refresc','Patates fregides','Fruits secs',
     'Melmelada','Mantequilla de cacauet','Conserva de tomat','Tonyina en llauna',
-    'Detergent rentadora','Suavitzant','Detergent plats','Paper de cuina',
-    'Paper de vàter','Bosses escombraries','Film transparent',
-    'Gel de dutxa','Xampú','Pasta de dents','Sabó de mans',
   ],
 }
 
 export default function QuickAddModal({ familyId, weekStart, sessionUserId, existingNames, onAdded, onClose }) {
-  const [search,  setSearch]  = useState('')
-  const [added,   setAdded]   = useState({}) // name → true (added in this session)
-  const [loading, setLoading] = useState({})
+  const [search,     setSearch]     = useState('')
+  const [added,      setAdded]      = useState({})
+  const [loading,    setLoading]    = useState({})
+  const [customText, setCustomText] = useState('')
+  const [customLoading, setCustomLoading] = useState(false)
 
   const existingSet = new Set((existingNames || []).map(n => n.toLowerCase()))
 
@@ -72,17 +86,28 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
     setLoading(p => ({ ...p, [name]: true }))
     const { supabase } = await import('../lib/supabase')
     await supabase.from('shopping_items').insert({
-      family_id: familyId,
-      name,
-      qty: '1',
-      unit: 'u.',
-      category,
-      week_start: weekStart,
-      is_checked: false,
+      family_id: familyId, name, qty: '1', unit: 'u.',
+      category, week_start: weekStart, is_checked: false,
       created_by: sessionUserId || null,
     })
     setAdded(p => ({ ...p, [name]: true }))
     setLoading(p => ({ ...p, [name]: false }))
+    if (onAdded) onAdded()
+  }
+
+  async function addCustom(e) {
+    e.preventDefault()
+    if (!customText.trim()) return
+    setCustomLoading(true)
+    const { supabase } = await import('../lib/supabase')
+    await supabase.from('shopping_items').insert({
+      family_id: familyId, name: customText.trim(), qty: '1', unit: 'u.',
+      category: 'Altres', week_start: weekStart, is_checked: false,
+      created_by: sessionUserId || null,
+    })
+    setAdded(p => ({ ...p, [customText.trim()]: true }))
+    setCustomText('')
+    setCustomLoading(false)
     if (onAdded) onAdded()
   }
 
@@ -114,15 +139,14 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
             placeholder="🔍 Cercar producte..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            autoFocus
             style={{ fontSize: 14 }}
           />
         </div>
 
         {/* Product list */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px 20px' }}>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px 8px' }}>
           {filteredCats.map(({ cat, items }) => {
-            const color = catColor(cat)
+            const color = catColor(cat) || '#7A7A9A'
             return (
               <div key={cat} style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>
@@ -137,7 +161,8 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
                         key={item}
                         onClick={() => !isAdded && addProduct(item, cat)}
                         style={{
-                          padding: '6px 12px', borderRadius: 20, border: `1.5px solid ${isAdded ? color : 'var(--border)'}`,
+                          padding: '6px 12px', borderRadius: 20,
+                          border: `1.5px solid ${isAdded ? color : 'var(--border)'}`,
                           background: isAdded ? color + '25' : 'var(--surface)',
                           color: isAdded ? color : 'var(--text)',
                           fontSize: 12, fontWeight: isAdded ? 700 : 400,
@@ -154,11 +179,33 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
               </div>
             )
           })}
+          {q && filteredCats.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13 }}>
+              No s'ha trobat "{search}"
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, textAlign: 'center' }}>
-          <button className="btn-primary" onClick={onClose} style={{ padding: '10px 32px' }}>
+        {/* Custom product + footer */}
+        <div style={{ padding: '12px 20px 16px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          <form onSubmit={addCustom} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <input
+              className="inp"
+              placeholder="✏️ Producte personalitzat..."
+              value={customText}
+              onChange={e => setCustomText(e.target.value)}
+              style={{ flex: 1, fontSize: 13 }}
+            />
+            <button
+              className="btn-ghost"
+              type="submit"
+              disabled={customLoading || !customText.trim()}
+              style={{ flexShrink: 0, padding: '9px 14px', fontSize: 13 }}
+            >
+              + Afegir
+            </button>
+          </form>
+          <button className="btn-primary" onClick={onClose} style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>
             Fet ✓
           </button>
         </div>

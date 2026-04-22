@@ -8,6 +8,7 @@ import { useTranslation } from '../lib/i18n'
 
 // ── Ingredient form ───────────────────────────────────────────────────────────
 function IngredientForm({ ingredients, setIngredients }) {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
   const [qty,  setQty]  = useState('')
   const [unit, setUnit] = useState('g')
@@ -21,10 +22,10 @@ function IngredientForm({ ingredients, setIngredients }) {
 
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Ingredients</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>{t('menu.ingredients_for')}</div>
       <div style={{ marginBottom: 8 }}>
         {ingredients.length === 0
-          ? <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'center', padding: '8px 0' }}>Cap ingredient afegit</div>
+          ? <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'center', padding: '8px 0' }}>{t('menu.no_ingredients')}</div>
           : ingredients.map((ing, i) => {
               const c = catColor(ing.category)
               return (
@@ -38,7 +39,7 @@ function IngredientForm({ ingredients, setIngredients }) {
             })}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 58px 58px', gap: 6, marginBottom: 6 }}>
-        <input className="inp" placeholder="Nom ingredient" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} />
+        <input className="inp" placeholder={t('menu.ingredient_name')} value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} />
         <input className="inp" placeholder="Qty" value={qty} onChange={e => setQty(e.target.value)} style={{ textAlign: 'center' }} />
         <input className="inp" placeholder="u." value={unit} onChange={e => setUnit(e.target.value)} style={{ textAlign: 'center' }} />
       </div>
@@ -46,7 +47,7 @@ function IngredientForm({ ingredients, setIngredients }) {
         <select className="inp" value={cat} onChange={e => setCat(e.target.value)} style={{ flex: 1 }}>
           {CATEGORIES.map(c => <option key={c}>{c}</option>)}
         </select>
-        <button className="btn-primary" type="button" onClick={add} style={{ padding: '9px 16px', flexShrink: 0 }}>+ Afegir</button>
+        <button className="btn-primary" type="button" onClick={add} style={{ padding: '9px 16px', flexShrink: 0 }}>+ {t('common.add')}</button>
       </div>
     </div>
   )

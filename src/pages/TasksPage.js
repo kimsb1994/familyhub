@@ -5,13 +5,13 @@ import { useAuth } from '../lib/AuthContext'
 import { Avatar, PageHeader, Spinner } from '../components/ui'
 import { useTranslation } from '../lib/i18n'
 
-function TaskModal({ existing, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
+function TaskModal({ existing, defaultMember, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
   const { t } = useTranslation()
   const [text,      setText]      = useState(existing?.text      || '')
   const [isUrgent,  setIsUrgent]  = useState(existing?.is_urgent || false)
   const [dueDate,   setDueDate]   = useState(existing?.due_date  || '')
   const [amount,    setAmount]    = useState(existing?.amount    || '')
-  const [assignedTo,setAssignedTo]= useState(existing?.assigned_to || '')
+  const [assignedTo,setAssignedTo]= useState(existing?.assigned_to || defaultMember || '')
   const [saving,    setSaving]    = useState(false)
   const [error,     setError]     = useState('')
 
@@ -94,9 +94,10 @@ function TaskModal({ existing, familyId, members, sessionUserId, onSaved, onDele
 export default function TasksPage({ members }) {
   const { family, session } = useAuth()
   const { t } = useTranslation()
-  const [tasks,   setTasks]   = useState([])
-  const [modal,   setModal]   = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [tasks,        setTasks]        = useState([])
+  const [modal,        setModal]        = useState(null)
+  const [loading,      setLoading]      = useState(true)
+  const [filterMember, setFilterMember] = useState(null)
 
   const load = useCallback(async () => {
     if (!family) return
@@ -126,8 +127,11 @@ export default function TasksPage({ members }) {
 
   const pending = tasks.filter(t => !t.is_done)
   const done    = tasks.filter(t => t.is_done)
-  const urgent  = pending.filter(t => t.is_urgent)
-  const normal  = pending.filter(t => !t.is_urgent)
+
+  const visiblePending = filterMember ? pending.filter(t => t.assigned_to === filterMember) : pending
+  const urgent  = visiblePending.filter(t => t.is_urgent)
+  const normal  = visiblePending.filter(t => !t.is_urgent)
+  const visibleDone = filterMember ? done.filter(t => t.assigned_to === filterMember) : done
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
 
@@ -202,10 +206,10 @@ export default function TasksPage({ members }) {
       )}
 
       {/* Done */}
-      {done.length > 0 && (
+      {visibleDone.length > 0 && (
         <>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8, marginTop: 16 }}>{t('tasks.done')} ✓</div>
-          {done.map(task => (
+          {visibleDone.map(task => (
             <div key={task.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px', marginBottom: 6, opacity: .5, cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: task })}>
               <div className="checkbox teal" onClick={e => { e.stopPropagation(); toggleDone(task) }}>
                 <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>
@@ -225,9 +229,65 @@ export default function TasksPage({ members }) {
         </div>
       )}
 
+      {/* Members section */}
+      {members.length > 0 && (
+        <div style={{ marginTop: 28, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
+            {t('tasks.assigned')}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div
+              onClick={() => setFilterMember(null)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                padding: '10px 12px', borderRadius: 14, cursor: 'pointer', minWidth: 60,
+                background: filterMember === null ? 'var(--accent-dim)' : 'var(--surface)',
+                border: `1.5px solid ${filterMember === null ? 'var(--accent)' : 'var(--border)'}`,
+                transition: 'all .15s',
+              }}
+            >
+              <div style={{ fontSize: 26 }}>👨‍👩‍👧</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: filterMember === null ? 'var(--accent)' : 'var(--text)' }}>{t('common.all_family')}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>{pending.length} {t('tasks.pending')}</div>
+            </div>
+            {members.map(m => {
+              const count = pending.filter(tk => tk.assigned_to === m.id).length
+              const isSelected = filterMember === m.id
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => setFilterMember(isSelected ? null : m.id)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                    padding: '10px 12px', borderRadius: 14, cursor: 'pointer', minWidth: 60,
+                    background: isSelected ? (m.avatar_color + '22') : 'var(--surface)',
+                    border: `1.5px solid ${isSelected ? m.avatar_color : 'var(--border)'}`,
+                    transition: 'all .15s',
+                  }}
+                >
+                  <Avatar member={m} size={36} />
+                  <div style={{ fontSize: 11, fontWeight: 600, color: isSelected ? m.avatar_color : 'var(--text)' }}>{m.name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{count} {t('tasks.pending')}</div>
+                </div>
+              )
+            })}
+          </div>
+          {filterMember && (
+            <button
+              className="btn-ghost"
+              onClick={() => setModal({ type: 'add', defaultMember: filterMember })}
+              style={{ marginTop: 12, width: '100%', justifyContent: 'center', fontSize: 13 }}
+            >
+              + {t('tasks.new')} → {members.find(m => m.id === filterMember)?.name}
+            </button>
+          )}
+        </div>
+      )}
+
       {modal && (
         <TaskModal
           existing={modal.type === 'edit' ? modal.data : null}
+          defaultMember={modal.defaultMember || null}
           familyId={family.id} members={members} sessionUserId={session.user.id}
           onSaved={load} onDeleted={load} onClose={() => setModal(null)}
         />

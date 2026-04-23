@@ -1,5 +1,5 @@
 // src/pages/TabletHub.js
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { getWeekStart, mergeIngredients, groupBy, catColor, DAYS_FULL, DAYS_SHORT } from '../lib/constants'
@@ -228,16 +228,28 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved
 
 // ── Menu panel ─────────────────────────────────────────────────────────────────
 function MenuPanel({ familyId, paneId }) {
-  const [meals,  setMeals]  = useState([])
-  const [modal,  setModal]  = useState(null)
-  const dayName   = DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
-  const weekStart = getWeekStart()
+  const [meals, setMeals] = useState([])
+  const [modal, setModal] = useState(null)
+
+  const threeDays = useMemo(() => [0, 1, 2].map(offset => {
+    const d = new Date()
+    d.setDate(d.getDate() + offset)
+    const jsDay = d.getDay()
+    return {
+      dayName:   DAYS_FULL[jsDay === 0 ? 6 : jsDay - 1],
+      weekStart: getWeekStart(d),
+      label:     offset === 0 ? 'Avui' : offset === 1 ? 'Demà' : DAYS_FULL[jsDay === 0 ? 6 : jsDay - 1],
+      isToday:   offset === 0,
+    }
+  }), [])
+
+  const weekStarts = useMemo(() => [...new Set(threeDays.map(d => d.weekStart))], [threeDays])
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('meals').select('*, meal_ingredients(*)')
-      .eq('family_id', familyId).eq('day_of_week', dayName).eq('week_start', weekStart)
+      .eq('family_id', familyId).in('week_start', weekStarts)
     setMeals(data || [])
-  }, [familyId, dayName, weekStart])
+  }, [familyId, weekStarts])
 
   useEffect(() => {
     load()
@@ -247,48 +259,58 @@ function MenuPanel({ familyId, paneId }) {
     return () => supabase.removeChannel(ch)
   }, [load, familyId])
 
-  const dinar = meals.find(m => m.meal_type === 'Dinar')
-  const sopar = meals.find(m => m.meal_type === 'Sopar')
-
   return (
     <>
-      <Panel title="Menú" accent="d'avui" icon="🍽️" style={{ height: '100%' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: '100%' }}>
-          {[['☀️', 'Dinar', dinar], ['🌙', 'Sopar', sopar]].map(([ico, label, meal]) => (
-            <div
-              key={label}
-              onClick={() => setModal({ type: meal ? 'edit' : 'pick', mealType: label, existing: meal || null })}
-              style={{ flex: 1, padding: '12px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 0, cursor: 'pointer', transition: 'border-color .15s' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em' }}>{ico} {label}</div>
-                <span style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>{meal ? '✏️' : '+'}</span>
+      <Panel title="Menú" accent="pròxims dies" icon="🍽️" noScroll style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', gap: 8, height: '100%' }}>
+          {threeDays.map(({ dayName, weekStart, label, isToday }) => {
+            const dayMeals = meals.filter(m => m.day_of_week === dayName && m.week_start === weekStart)
+            const dinar = dayMeals.find(m => m.meal_type === 'Dinar')
+            const sopar = dayMeals.find(m => m.meal_type === 'Sopar')
+            return (
+              <div key={dayName + weekStart} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: isToday ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 14, padding: '8px 12px', border: `1px solid ${isToday ? 'var(--accent)' : 'var(--border)'}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? 'var(--accent)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', flexShrink: 0 }}>
+                  {label}{!isToday && ` · ${dayName}`}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, flex: 1, minHeight: 0 }}>
+                  {[['☀️', 'Dinar', dinar], ['🌙', 'Sopar', sopar]].map(([ico, mealType, meal]) => (
+                    <div
+                      key={mealType}
+                      onClick={() => setModal({ type: meal ? 'edit' : 'pick', mealType, existing: meal || null, dayName, weekStart })}
+                      style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}
+                    >
+                      <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{ico} {mealType}</div>
+                      {meal ? (
+                        <>
+                          <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                            <span>{meal.emoji}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                            {meal.meal_ingredients?.slice(0, 3).map((ing, i) => {
+                              const c = catColor(ing.category)
+                              return <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: c + '18', color: c, fontWeight: 600 }}>{ing.name}</span>
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 11, color: 'var(--dim)', fontStyle: 'italic' }}>+ Afegir</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-              {meal ? (
-                <>
-                  <div style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 20 }}>{meal.emoji}</span>{meal.name}
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {meal.meal_ingredients?.slice(0, 5).map((ing, i) => {
-                      const c = catColor(ing.category)
-                      return <span key={i} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: c + '18', color: c, fontWeight: 600 }}>{ing.name}</span>
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontSize: 13, color: 'var(--dim)', fontStyle: 'italic' }}>Toca per afegir</div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Panel>
+
       {modal?.type === 'pick' && (
         <TabletDishPickerModal
           mealType={modal.mealType}
           familyId={familyId}
-          dayName={dayName}
-          weekStart={weekStart}
+          dayName={modal.dayName}
+          weekStart={modal.weekStart}
           onSaved={() => { load(); setModal(null) }}
           onClose={() => setModal(null)}
         />
@@ -298,8 +320,8 @@ function MenuPanel({ familyId, paneId }) {
           existing={modal.existing}
           mealType={modal.mealType}
           familyId={familyId}
-          dayName={dayName}
-          weekStart={weekStart}
+          dayName={modal.dayName}
+          weekStart={modal.weekStart}
           onSaved={() => { load(); setModal(null) }}
           onClose={() => setModal(null)}
         />

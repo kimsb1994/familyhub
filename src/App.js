@@ -197,10 +197,10 @@ function AppInner() {
 
   // MOBILE
   return (
-    <div style={{ width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100dvh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
+    <div style={{ width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100dvh', background:'var(--bg)', display:'grid', gridTemplateRows:'1fr' }}>
       {!isOnline && <OfflineBanner />}
 
-      <div style={{ flex:1, overflowY:'auto', paddingBottom:'calc(84px + max(0px, env(safe-area-inset-bottom, 0px) - 16px))', display:'flex', flexDirection:'column' }}>
+      <div style={{ overflowY:'auto', paddingBottom:'calc(84px + max(0px, env(safe-area-inset-bottom, 0px) - 16px))', display:'grid', gridTemplateRows:'1fr' }}>
         {view === 'home'     && <Dashboard    members={members} onNavigate={setView} />}
         {view === 'calendar' && <CalendarPage members={members} />}
         {view === 'menu'     && <MenuPage />}

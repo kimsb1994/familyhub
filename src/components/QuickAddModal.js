@@ -270,11 +270,11 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 500, padding: 16, overflowY: 'auto' }}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 600, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 600, maxHeight: 'calc(100dvh - 32px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}
       >
         {/* Header */}
         <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -294,7 +294,7 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
         </div>
 
         {/* Product list */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '12px 20px 8px' }}>
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, padding: '12px 20px 8px' }}>
           {filteredCats.map(({ cat, items }) => {
             const color = catColor(cat) || '#7A7A9A'
             return (

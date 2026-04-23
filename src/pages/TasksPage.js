@@ -132,7 +132,7 @@ export default function TasksPage({ members }) {
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
 
   return (
-    <div style={{ padding: '20px 16px' }} className="fu">
+    <div style={{ padding: '20px 16px', minHeight: '100%' }} className="fu">
       <PageHeader
         title={t('tasks.title')} accent={t('tasks.accent')}
         action={

@@ -136,7 +136,7 @@ export default function TasksPage({ members }) {
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
 
   return (
-    <div style={{ padding: '20px 16px' }} className="fu">
+    <div style={{ padding: '20px 16px', paddingBottom: members.length > 0 ? 100 : 20 }} className="fu">
       <PageHeader
         title={t('tasks.title')} accent={t('tasks.accent')}
         action={
@@ -229,26 +229,35 @@ export default function TasksPage({ members }) {
         </div>
       )}
 
-      {/* Members section */}
+      {/* Members filter bar — fixed just above BottomNav */}
       {members.length > 0 && (
-        <div style={{ marginTop: 28, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 12 }}>
-            {t('tasks.assigned')}
-          </div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{
+          position: 'fixed',
+          bottom: 62,
+          left: '50%', transform: 'translateX(-50%)',
+          width: '100%', maxWidth: 480,
+          background: 'var(--surface)',
+          borderTop: '1px solid var(--border)',
+          backdropFilter: 'blur(12px)',
+          padding: '8px 16px',
+          zIndex: 99,
+        }}>
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
             <div
               onClick={() => setFilterMember(null)}
               style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                padding: '10px 12px', borderRadius: 14, cursor: 'pointer', minWidth: 60,
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '5px 10px', borderRadius: 20, cursor: 'pointer', flexShrink: 0,
                 background: filterMember === null ? 'var(--accent-dim)' : 'var(--surface)',
                 border: `1.5px solid ${filterMember === null ? 'var(--accent)' : 'var(--border)'}`,
                 transition: 'all .15s',
               }}
             >
-              <div style={{ fontSize: 26 }}>👨‍👩‍👧</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: filterMember === null ? 'var(--accent)' : 'var(--text)' }}>{t('common.all_family')}</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>{pending.length} {t('tasks.pending')}</div>
+              <span style={{ fontSize: 20 }}>👨‍👩‍👧</span>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: filterMember === null ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap' }}>{t('common.all_family')}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{pending.length}</div>
+              </div>
             </div>
             {members.map(m => {
               const count = pending.filter(tk => tk.assigned_to === m.id).length
@@ -258,16 +267,18 @@ export default function TasksPage({ members }) {
                   key={m.id}
                   onClick={() => setFilterMember(isSelected ? null : m.id)}
                   style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                    padding: '10px 12px', borderRadius: 14, cursor: 'pointer', minWidth: 60,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 10px', borderRadius: 20, cursor: 'pointer', flexShrink: 0,
                     background: isSelected ? (m.avatar_color + '22') : 'var(--surface)',
                     border: `1.5px solid ${isSelected ? m.avatar_color : 'var(--border)'}`,
                     transition: 'all .15s',
                   }}
                 >
-                  <Avatar member={m} size={36} />
-                  <div style={{ fontSize: 11, fontWeight: 600, color: isSelected ? m.avatar_color : 'var(--text)' }}>{m.name}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>{count} {t('tasks.pending')}</div>
+                  <Avatar member={m} size={24} />
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: isSelected ? m.avatar_color : 'var(--text)', whiteSpace: 'nowrap' }}>{m.name}</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{count}</div>
+                  </div>
                 </div>
               )
             })}
@@ -276,7 +287,7 @@ export default function TasksPage({ members }) {
             <button
               className="btn-ghost"
               onClick={() => setModal({ type: 'add', defaultMember: filterMember })}
-              style={{ marginTop: 12, width: '100%', justifyContent: 'center', fontSize: 13 }}
+              style={{ marginTop: 8, width: '100%', justifyContent: 'center', fontSize: 13 }}
             >
               + {t('tasks.new')} → {members.find(m => m.id === filterMember)?.name}
             </button>

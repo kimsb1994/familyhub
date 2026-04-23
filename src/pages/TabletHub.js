@@ -621,9 +621,9 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
               <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '10px 0', flexShrink: 0 }} />
 
               {/* Horizontal task chips */}
-              <div style={{ flex: 1, display: 'flex', gap: 8, overflowX: 'auto', alignItems: 'center', minWidth: 0, padding: '8px 0' }}>
+              <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'stretch', minWidth: 0, padding: '8px 0', overflowX: 'auto' }}>
                 {dayTasks.length === 0 && (
-                  <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>Cap tasca</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', alignSelf: 'center' }}>Cap tasca</div>
                 )}
                 {dayTasks.map(task => (
                   <div
@@ -631,7 +631,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                     onClick={() => toggleDone(task)}
                     style={{
                       position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                      flexShrink: 0, alignSelf: 'stretch', minWidth: 200, padding: '14px 16px', borderRadius: 14,
+                      flex: '1 0 0', minWidth: 110, maxWidth: 220, padding: '10px 12px', borderRadius: 12,
                       background: cardBg(task),
                       border: `1.5px solid ${cardBorder(task)}`,
                       cursor: 'pointer', userSelect: 'none',

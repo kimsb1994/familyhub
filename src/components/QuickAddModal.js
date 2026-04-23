@@ -274,7 +274,7 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 600, display: 'grid', overflow: 'hidden', alignSelf: 'stretch' }}
+        style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 600, display: 'flex', flexDirection: 'column', overflow: 'hidden', alignSelf: 'stretch' }}
       >
         {/* Header */}
         <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

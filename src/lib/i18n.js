@@ -117,6 +117,11 @@ const T = {
     'menu.hard':            'Difícil',
     'menu.more':            'més',
     'menu.ingredients_for': 'Ingredients',
+    'menu.pick_dish':       'Escull un plat de la biblioteca',
+    'menu.search_dish':     'Buscar plat...',
+    'menu.no_results':      'Sense resultats',
+    'menu.no_dishes_yet':   'Encara no hi ha plats guardats',
+    'menu.create_new_dish': 'Crear nou plat',
 
     // Shopping
     'shopping.title':       'Llista de',
@@ -159,6 +164,11 @@ const T = {
     'tasks.create':         '+ Crear tasca',
     'tasks.all_done':       'Tot al dia! 🎉',
     'tasks.due':            'Venc.',
+    'tasks.day':            'Dia',
+    'tasks.empty_day':      'Sense tasques per avui',
+    'tasks.add_to_day':     '+ Afegir tasca a',
+    'tasks.week_summary':   'Resum de la setmana',
+    'tasks.no_tasks_day':   'Cap tasca',
 
     // Profile
     'profile.title':        'La Família',
@@ -358,6 +368,11 @@ const T = {
     'menu.hard':            'Difícil',
     'menu.more':            'más',
     'menu.ingredients_for': 'Ingredientes',
+    'menu.pick_dish':       'Elige un plato de la biblioteca',
+    'menu.search_dish':     'Buscar plato...',
+    'menu.no_results':      'Sin resultados',
+    'menu.no_dishes_yet':   'Todavía no hay platos guardados',
+    'menu.create_new_dish': 'Crear nuevo plato',
 
     'shopping.title':       'Lista de',
     'shopping.accent':      'Compra',
@@ -398,6 +413,11 @@ const T = {
     'tasks.create':         '+ Crear tarea',
     'tasks.all_done':       '¡Todo al día! 🎉',
     'tasks.due':            'Vence.',
+    'tasks.day':            'Día',
+    'tasks.empty_day':      'Sin tareas para hoy',
+    'tasks.add_to_day':     '+ Añadir tarea a',
+    'tasks.week_summary':   'Resumen de la semana',
+    'tasks.no_tasks_day':   'Sin tareas',
 
     'profile.title':        'La Familia',
     'profile.invite':       '+ Invitar',
@@ -590,6 +610,11 @@ const T = {
     'menu.hard':            'Hard',
     'menu.more':            'more',
     'menu.ingredients_for': 'Ingredients',
+    'menu.pick_dish':       'Pick a dish from the library',
+    'menu.search_dish':     'Search dish...',
+    'menu.no_results':      'No results',
+    'menu.no_dishes_yet':   'No dishes saved yet',
+    'menu.create_new_dish': 'Create new dish',
 
     'shopping.title':       'Shopping',
     'shopping.accent':      'List',
@@ -630,6 +655,11 @@ const T = {
     'tasks.create':         '+ Create task',
     'tasks.all_done':       'All up to date! 🎉',
     'tasks.due':            'Due',
+    'tasks.day':            'Day',
+    'tasks.empty_day':      'No tasks for today',
+    'tasks.add_to_day':     '+ Add task to',
+    'tasks.week_summary':   'Week summary',
+    'tasks.no_tasks_day':   'No tasks',
 
     'profile.title':        'The Family',
     'profile.invite':       '+ Invite',

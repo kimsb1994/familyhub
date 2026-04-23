@@ -53,8 +53,137 @@ function IngredientForm({ ingredients, setIngredients }) {
   )
 }
 
+// ── Dish picker modal ─────────────────────────────────────────────────────────
+function DishPickerModal({ day, mealType, familyId, weekStart, onSaved, onClose }) {
+  const { session } = useAuth()
+  const { t } = useTranslation()
+  const [dishes,   setDishes]   = useState([])
+  const [search,   setSearch]   = useState('')
+  const [loading,  setLoading]  = useState(true)
+  const [saving,   setSaving]   = useState(null)
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    supabase.from('dishes').select('*, dish_ingredients(*)')
+      .eq('family_id', familyId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setDishes(data || []); setLoading(false) })
+  }, [familyId])
+
+  const filtered = search
+    ? dishes.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))
+    : dishes
+
+  async function selectDish(dish) {
+    setSaving(dish.id)
+    try {
+      const { data, error } = await supabase.from('meals').insert({
+        family_id: familyId, name: dish.name, emoji: dish.emoji,
+        time_minutes: dish.time_minutes, difficulty: dish.difficulty,
+        meal_type: mealType, day_of_week: day, week_start: weekStart,
+        created_by: session.user.id,
+      }).select().single()
+      if (error) throw error
+      if (dish.dish_ingredients?.length > 0) {
+        await supabase.from('meal_ingredients').insert(
+          dish.dish_ingredients.map(({ name, qty, unit, category }) => ({
+            meal_id: data.id, name, qty, unit, category,
+          }))
+        )
+      }
+      onSaved(); onClose()
+    } catch {
+      setSaving(null)
+    }
+  }
+
+  if (creating) {
+    return (
+      <MealModal
+        day={day} mealType={mealType}
+        familyId={familyId} weekStart={weekStart}
+        saveToLibrary
+        onSaved={onSaved} onDeleted={onSaved} onClose={onClose}
+      />
+    )
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-drag" />
+        <div style={{ marginBottom: 14 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 2 }}>
+            {mealType === 'Dinar' ? '☀️' : '🌙'} {mealType} · {day}
+          </h3>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('menu.pick_dish')}</div>
+        </div>
+
+        <input
+          className="inp"
+          placeholder={t('menu.search_dish')}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ marginBottom: 10 }}
+          autoFocus
+        />
+
+        <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 12 }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}>
+              <Spinner size={24} />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--dim)', fontSize: 13 }}>
+              {search ? t('menu.no_results') : t('menu.no_dishes_yet')}
+            </div>
+          ) : (
+            filtered.map(dish => (
+              <div
+                key={dish.id}
+                onClick={() => !saving && selectDish(dish)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '11px 13px', borderRadius: 12,
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  marginBottom: 8, cursor: saving ? 'default' : 'pointer',
+                  opacity: saving && saving !== dish.id ? 0.4 : 1,
+                  transition: 'all .15s',
+                }}
+              >
+                <span style={{ fontSize: 26, flexShrink: 0 }}>{dish.emoji || '🍽️'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {dish.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 8 }}>
+                    {dish.time_minutes && <span>⏱ {dish.time_minutes}</span>}
+                    {dish.difficulty && <span>{dish.difficulty}</span>}
+                    {dish.dish_ingredients?.length > 0 && <span>{dish.dish_ingredients.length} ing.</span>}
+                  </div>
+                </div>
+                {saving === dish.id
+                  ? <Spinner size={18} />
+                  : <span style={{ color: 'var(--accent)', fontSize: 18 }}>→</span>}
+              </div>
+            ))
+          )}
+        </div>
+
+        <button
+          className="btn-primary"
+          onClick={() => setCreating(true)}
+          style={{ width: '100%', justifyContent: 'center' }}
+        >
+          ✨ {t('menu.create_new_dish')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Meal modal (create / edit) ────────────────────────────────────────────────
-function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDeleted, onClose }) {
+function MealModal({ day, mealType, existing, familyId, weekStart, saveToLibrary, onSaved, onDeleted, onClose }) {
   const { session } = useAuth()
   const { t } = useTranslation()
   const [name,  setName]  = useState(existing?.name  || '')
@@ -76,28 +205,35 @@ function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDe
     try {
       let mealId = existing?.id
       if (existing) {
-        // Update meal
         await supabase.from('meals').update({ name: name.trim(), emoji, time_minutes: time, difficulty: diff }).eq('id', existing.id)
-        // Replace ingredients
         await supabase.from('meal_ingredients').delete().eq('meal_id', existing.id)
       } else {
-        // Insert meal
         const { data, error: mealErr } = await supabase.from('meals').insert({
           family_id: familyId, name: name.trim(), emoji, time_minutes: time, difficulty: diff,
           meal_type: mealType, day_of_week: day, week_start: weekStart,
-          created_by: session.user.id
+          created_by: session.user.id,
         }).select().single()
         if (mealErr) throw mealErr
         mealId = data.id
+
+        // Save to dishes library when creating new
+        if (saveToLibrary) {
+          const { data: dish } = await supabase.from('dishes').insert({
+            family_id: familyId, name: name.trim(), emoji, time_minutes: time, difficulty: diff,
+          }).select().single()
+          if (dish && ings.length > 0) {
+            await supabase.from('dish_ingredients').insert(
+              ings.map(({ name, qty, unit, category }) => ({ dish_id: dish.id, name, qty, unit, category }))
+            )
+          }
+        }
       }
-      // Insert ingredients
       if (ings.length > 0) {
         await supabase.from('meal_ingredients').insert(
           ings.map(({ name, qty, unit, category }) => ({ meal_id: mealId, name, qty, unit, category }))
         )
       }
-      onSaved()
-      onClose()
+      onSaved(); onClose()
     } catch (e) {
       setError(e.message)
     } finally {
@@ -109,8 +245,7 @@ function MealModal({ day, mealType, existing, familyId, weekStart, onSaved, onDe
     if (!existing) return
     setDeleting(true)
     await supabase.from('meals').delete().eq('id', existing.id)
-    onDeleted()
-    onClose()
+    onDeleted(); onClose()
   }
 
   return (
@@ -304,7 +439,7 @@ export default function MenuPage() {
                   )}
                 </>
               ) : (
-                <div className="meal-slot empty" onClick={() => setModal({ type: 'add', day: activeDay, mealType: meal })} style={{ justifyContent: 'center', flexDirection: 'column', gap: 3 }}>
+                <div className="meal-slot empty" onClick={() => setModal({ type: 'pick', day: activeDay, mealType: meal })} style={{ justifyContent: 'center', flexDirection: 'column', gap: 3 }}>
                   <span style={{ fontSize: 20, opacity: .35 }}>+</span>
                   <span style={{ fontSize: 10, color: 'var(--dim)' }}>{t('menu.new_day')}</span>
                 </div>
@@ -335,10 +470,17 @@ export default function MenuPage() {
       })}
 
       {/* Modals */}
-      {(modal?.type === 'add' || modal?.type === 'edit') && (
+      {modal?.type === 'pick' && (
+        <DishPickerModal
+          day={modal.day} mealType={modal.mealType}
+          familyId={family.id} weekStart={weekStart}
+          onSaved={load} onClose={() => setModal(null)}
+        />
+      )}
+      {modal?.type === 'edit' && (
         <MealModal
           day={modal.day} mealType={modal.mealType}
-          existing={modal.type === 'edit' ? modal.data : null}
+          existing={modal.data}
           familyId={family.id} weekStart={weekStart}
           onSaved={load} onDeleted={load} onClose={() => setModal(null)}
         />

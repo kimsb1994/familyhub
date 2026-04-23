@@ -4,24 +4,29 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { Avatar, PageHeader, Spinner } from '../components/ui'
 import { useTranslation } from '../lib/i18n'
+import { DAYS_SHORT, DAYS_FULL, getWeekStart } from '../lib/constants'
 
-function TaskModal({ existing, defaultMember, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
+// ── Task modal ────────────────────────────────────────────────────────────────
+function TaskModal({ existing, defaultDay, weekStart, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
   const { t } = useTranslation()
-  const [text,      setText]      = useState(existing?.text      || '')
-  const [isUrgent,  setIsUrgent]  = useState(existing?.is_urgent || false)
-  const [dueDate,   setDueDate]   = useState(existing?.due_date  || '')
-  const [amount,    setAmount]    = useState(existing?.amount    || '')
-  const [assignedTo,setAssignedTo]= useState(existing?.assigned_to || defaultMember || '')
-  const [saving,    setSaving]    = useState(false)
-  const [error,     setError]     = useState('')
+  const [text,       setText]       = useState(existing?.text        || '')
+  const [dayOfWeek,  setDayOfWeek]  = useState(existing?.day_of_week || defaultDay || DAYS_FULL[0])
+  const [assignedTo, setAssignedTo] = useState(existing?.assigned_to || '')
+  const [isUrgent,   setIsUrgent]   = useState(existing?.is_urgent   || false)
+  const [amount,     setAmount]     = useState(existing?.amount       || '')
+  const [saving,     setSaving]     = useState(false)
+  const [error,      setError]      = useState('')
 
   async function save() {
     if (!text.trim()) return
     setSaving(true); setError('')
     const payload = {
       family_id: familyId, text: text.trim(), is_urgent: isUrgent,
-      due_date: dueDate || null, amount: amount ? parseFloat(amount) : null,
-      assigned_to: assignedTo || null, created_by: sessionUserId,
+      amount: amount ? parseFloat(amount) : null,
+      assigned_to: assignedTo || null,
+      day_of_week: dayOfWeek,
+      week_start: weekStart,
+      created_by: sessionUserId,
     }
     const { error: e } = existing
       ? await supabase.from('tasks').update(payload).eq('id', existing.id)
@@ -40,41 +45,90 @@ function TaskModal({ existing, defaultMember, familyId, members, sessionUserId, 
       <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-drag" />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{existing ? t('tasks.edit_task') : t('tasks.new_task')}</h3>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>
+            {existing ? t('tasks.edit_task') : t('tasks.new_task')}
+          </h3>
           {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
         </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>*</label>
-          <input className="inp" placeholder={t('tasks.task_desc')} value={text} onChange={e => setText(e.target.value)} />
+        {/* Day selector */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>{t('tasks.day')}</div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {DAYS_FULL.map((d, i) => (
+              <button
+                key={d}
+                onClick={() => setDayOfWeek(d)}
+                style={{
+                  padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+                  background: dayOfWeek === d ? 'var(--accent)' : 'var(--border)',
+                  color: dayOfWeek === d ? '#fff' : 'var(--muted)',
+                  transition: 'all .15s',
+                }}
+              >
+                {DAYS_SHORT[i]}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('tasks.due_date')}</label>
-            <input className="inp" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
-          </div>
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('tasks.amount')}</label>
-            <input className="inp" type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
-          </div>
+        {/* Task text */}
+        <div style={{ marginBottom: 12 }}>
+          <input className="inp" placeholder={t('tasks.task_desc')} value={text} onChange={e => setText(e.target.value)} autoFocus />
         </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('tasks.assigned')}</label>
-          <select className="inp" value={assignedTo} onChange={e => setAssignedTo(e.target.value)}>
-            <option value="">{t('common.all_family')}</option>
-            {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </div>
+        {/* Assignee */}
+        {members.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>{t('tasks.assigned')}</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div
+                onClick={() => setAssignedTo('')}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  padding: '8px 10px', borderRadius: 12, cursor: 'pointer',
+                  background: !assignedTo ? 'var(--accent-dim)' : 'var(--surface)',
+                  border: `1.5px solid ${!assignedTo ? 'var(--accent)' : 'var(--border)'}`,
+                  transition: 'all .15s',
+                }}
+              >
+                <span style={{ fontSize: 20 }}>👥</span>
+                <span style={{ fontSize: 10, fontWeight: 600, color: !assignedTo ? 'var(--accent)' : 'var(--muted)', whiteSpace: 'nowrap' }}>{t('common.all_family')}</span>
+              </div>
+              {members.map(m => (
+                <div
+                  key={m.id}
+                  onClick={() => setAssignedTo(m.id)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                    padding: '8px 10px', borderRadius: 12, cursor: 'pointer',
+                    background: assignedTo === m.id ? m.avatar_color + '22' : 'var(--surface)',
+                    border: `1.5px solid ${assignedTo === m.id ? m.avatar_color : 'var(--border)'}`,
+                    transition: 'all .15s',
+                  }}
+                >
+                  <Avatar member={m} size={28} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: assignedTo === m.id ? m.avatar_color : 'var(--muted)', whiteSpace: 'nowrap' }}>{m.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--red-dim)', border: '1px solid #FF446630', marginBottom: 14, cursor: 'pointer' }} onClick={() => setIsUrgent(p => !p)}>
-          <div className={`checkbox ${isUrgent ? 'red' : ''}`}>
-            {isUrgent && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
+        {/* Urgent + Amount */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+          <div
+            onClick={() => setIsUrgent(p => !p)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, background: 'var(--red-dim)', border: '1px solid #FF446630', cursor: 'pointer' }}
+          >
+            <div className={`checkbox ${isUrgent ? 'red' : ''}`}>
+              {isUrgent && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--red)' }}>⚡ {t('tasks.urgent_label')}</span>
           </div>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>{t('tasks.urgent_label')}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t('tasks.urgent_desc')}</div>
+            <input className="inp" type="number" placeholder="€ import" value={amount} onChange={e => setAmount(e.target.value)} />
           </div>
         </div>
 
@@ -91,13 +145,18 @@ function TaskModal({ existing, defaultMember, familyId, members, sessionUserId, 
   )
 }
 
+// ── Main Tasks Page ───────────────────────────────────────────────────────────
 export default function TasksPage({ members }) {
   const { family, session } = useAuth()
   const { t } = useTranslation()
-  const [tasks,        setTasks]        = useState([])
-  const [modal,        setModal]        = useState(null)
-  const [loading,      setLoading]      = useState(true)
-  const [filterMember, setFilterMember] = useState(null)
+  const [tasks,     setTasks]     = useState([])
+  const [modal,     setModal]     = useState(null)
+  const [loading,   setLoading]   = useState(true)
+  const [activeDay, setActiveDay] = useState(
+    DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
+  )
+
+  const weekStart = getWeekStart()
 
   const load = useCallback(async () => {
     if (!family) return
@@ -105,16 +164,16 @@ export default function TasksPage({ members }) {
       .from('tasks')
       .select('*, family_members(name,avatar_color)')
       .eq('family_id', family.id)
-      .order('is_urgent', { ascending: false })
+      .eq('week_start', weekStart)
       .order('created_at')
     setTasks(data || [])
     setLoading(false)
-  }, [family])
+  }, [family, weekStart])
 
   useEffect(() => {
     load()
     if (!family) return
-    const ch = supabase.channel('tasks')
+    const ch = supabase.channel('tasks-weekly')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `family_id=eq.${family.id}` }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
@@ -125,18 +184,18 @@ export default function TasksPage({ members }) {
     setTasks(p => p.map(t => t.id === task.id ? { ...t, is_done: !t.is_done } : t))
   }
 
-  const pending = tasks.filter(t => !t.is_done)
-  const done    = tasks.filter(t => t.is_done)
+  function getTasksForDay(day) {
+    return tasks.filter(t => t.day_of_week === day)
+  }
 
-  const visiblePending = filterMember ? pending.filter(t => t.assigned_to === filterMember) : pending
-  const urgent  = visiblePending.filter(t => t.is_urgent)
-  const normal  = visiblePending.filter(t => !t.is_urgent)
-  const visibleDone = filterMember ? done.filter(t => t.assigned_to === filterMember) : done
+  const activeTasks = getTasksForDay(activeDay)
+  const totalWeek   = tasks.length
+  const doneWeek    = tasks.filter(t => t.is_done).length
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
 
   return (
-    <div style={{ padding: '20px 16px', paddingBottom: members.length > 0 ? 100 : 20 }} className="fu">
+    <div style={{ padding: '20px 16px 24px' }} className="fu">
       <PageHeader
         title={t('tasks.title')} accent={t('tasks.accent')}
         action={
@@ -146,161 +205,182 @@ export default function TasksPage({ members }) {
         }
       />
 
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        {[
-          { val: pending.length, label: t('tasks.pending'), color: 'var(--accent)' },
-          { val: done.length,    label: t('tasks.done'),    color: 'var(--teal)'   },
-        ].map(s => (
-          <div key={s.label} className="card" style={{ flex: 1, textAlign: 'center', padding: '12px' }}>
-            <div style={{ fontSize: 26, fontWeight: 700, color: s.color, fontFamily: 'Fraunces, serif' }}>{s.val}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.label}</div>
+      {/* Week progress */}
+      {totalWeek > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 5 }}>
+            <span>{totalWeek - doneWeek} {t('tasks.pending')}</span>
+            <span style={{ color: 'var(--teal)', fontWeight: 700 }}>{doneWeek}/{totalWeek}</span>
           </div>
-        ))}
-      </div>
-
-      {/* Urgent */}
-      {urgent.length > 0 && (
-        <>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--red)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>⚡ {t('tasks.urgent_section')}</div>
-          {urgent.map(task => (
-            <div key={task.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px', marginBottom: 8, background: 'var(--red-dim)', borderColor: '#FF446630', cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: task })}>
-              <div className="checkbox red" onClick={e => { e.stopPropagation(); toggleDone(task) }}>
-                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>⚡</span>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--red)' }}>{task.text}</div>
-                {(task.due_date || task.amount) && (
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                    {task.due_date && `${t('tasks.due')} ${new Date(task.due_date+'T12:00').toLocaleDateString()}`}
-                    {task.amount && ` · ${task.amount}€`}
-                  </div>
-                )}
-              </div>
-              {task.family_members && <Avatar member={task.family_members} size={26} />}
-            </div>
-          ))}
-        </>
-      )}
-
-      {/* Normal pending */}
-      {normal.length > 0 && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8, marginTop: urgent.length ? 16 : 0 }}>{t('tasks.pending')}</div>
-          {normal.map(task => (
-            <div key={task.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px', marginBottom: 8, cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: task })}>
-              <div className="checkbox" onClick={e => { e.stopPropagation(); toggleDone(task) }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>{task.text}</div>
-                {(task.due_date || task.amount) && (
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                    {task.due_date && `${t('tasks.due')} ${new Date(task.due_date+'T12:00').toLocaleDateString()}`}
-                    {task.amount && ` · ${task.amount}€`}
-                  </div>
-                )}
-              </div>
-              {task.family_members && <Avatar member={task.family_members} size={26} />}
-            </div>
-          ))}
-        </>
-      )}
-
-      {/* Done */}
-      {visibleDone.length > 0 && (
-        <>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8, marginTop: 16 }}>{t('tasks.done')} ✓</div>
-          {visibleDone.map(task => (
-            <div key={task.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px', marginBottom: 6, opacity: .5, cursor: 'pointer' }} onClick={() => setModal({ type: 'edit', data: task })}>
-              <div className="checkbox teal" onClick={e => { e.stopPropagation(); toggleDone(task) }}>
-                <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>
-              </div>
-              <div style={{ flex: 1, fontSize: 13, textDecoration: 'line-through', color: 'var(--muted)' }}>{task.text}</div>
-              {task.family_members && <Avatar member={task.family_members} size={22} />}
-            </div>
-          ))}
-        </>
-      )}
-
-      {tasks.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '48px 20px' }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>{t('tasks.empty_title')}</div>
-          <div style={{ fontSize: 13, color: 'var(--muted)' }}>{t('tasks.empty_desc')}</div>
+          <div style={{ height: 4, background: 'var(--border)', borderRadius: 2 }}>
+            <div style={{
+              height: '100%', borderRadius: 2, transition: 'width .4s',
+              background: 'linear-gradient(90deg, var(--teal), var(--accent))',
+              width: `${Math.round((doneWeek / totalWeek) * 100)}%`,
+            }} />
+          </div>
         </div>
       )}
 
-      {/* Members filter bar — fixed just above BottomNav */}
-      {members.length > 0 && (
-        <div style={{
-          position: 'fixed',
-          bottom: 'calc(62px + max(16px, env(safe-area-inset-bottom, 0px)))',
-          left: '50%', transform: 'translateX(-50%)',
-          width: '100%', maxWidth: 480,
-          background: 'var(--surface)',
-          borderTop: '1px solid var(--border)',
-          backdropFilter: 'blur(12px)',
-          padding: '8px 16px',
-          zIndex: 99,
-        }}>
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
-            <div
-              onClick={() => setFilterMember(null)}
+      {/* Day pills */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+        {DAYS_FULL.map((d, i) => {
+          const dayTasks  = getTasksForDay(d)
+          const pending   = dayTasks.filter(t => !t.is_done).length
+          const isActive  = d === activeDay
+          return (
+            <button
+              key={d}
+              onClick={() => setActiveDay(d)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '5px 10px', borderRadius: 20, cursor: 'pointer', flexShrink: 0,
-                background: filterMember === null ? 'var(--accent-dim)' : 'var(--surface)',
-                border: `1.5px solid ${filterMember === null ? 'var(--accent)' : 'var(--border)'}`,
-                transition: 'all .15s',
+                flexShrink: 0, minWidth: 40, padding: '7px 9px', borderRadius: 10,
+                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                fontSize: 11, fontWeight: 700, transition: 'all .15s', position: 'relative',
+                background: isActive ? 'var(--accent)' : 'var(--card)',
+                color: isActive ? '#fff' : 'var(--muted)',
               }}
             >
-              <span style={{ fontSize: 20 }}>👨‍👩‍👧</span>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: filterMember === null ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap' }}>{t('common.all_family')}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{pending.length}</div>
-              </div>
-            </div>
-            {members.map(m => {
-              const count = pending.filter(tk => tk.assigned_to === m.id).length
-              const isSelected = filterMember === m.id
-              return (
-                <div
-                  key={m.id}
-                  onClick={() => setFilterMember(isSelected ? null : m.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '5px 10px', borderRadius: 20, cursor: 'pointer', flexShrink: 0,
-                    background: isSelected ? (m.avatar_color + '22') : 'var(--surface)',
-                    border: `1.5px solid ${isSelected ? m.avatar_color : 'var(--border)'}`,
-                    transition: 'all .15s',
-                  }}
-                >
-                  <Avatar member={m} size={24} />
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isSelected ? m.avatar_color : 'var(--text)', whiteSpace: 'nowrap' }}>{m.name}</div>
-                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{count}</div>
-                  </div>
+              {DAYS_SHORT[i]}
+              {pending > 0 && (
+                <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)' }}>
+                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: isActive ? '#fff8' : 'var(--accent)' }} />
                 </div>
-              )
-            })}
-          </div>
-          {filterMember && (
-            <button
-              className="btn-ghost"
-              onClick={() => setModal({ type: 'add', defaultMember: filterMember })}
-              style={{ marginTop: 8, width: '100%', justifyContent: 'center', fontSize: 13 }}
-            >
-              + {t('tasks.new')} → {members.find(m => m.id === filterMember)?.name}
+              )}
             </button>
-          )}
-        </div>
-      )}
+          )
+        })}
+      </div>
+
+      {/* Active day */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 15, fontFamily: 'Fraunces, serif', fontWeight: 700, marginBottom: 10 }}>{activeDay}</div>
+
+        {activeTasks.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--dim)', fontSize: 13 }}>
+            {t('tasks.empty_day')}
+          </div>
+        )}
+
+        {activeTasks.map(task => {
+          const assignee = task.family_members
+          return (
+            <div
+              key={task.id}
+              className="card"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '12px 13px', marginBottom: 8,
+                background: task.is_urgent ? 'var(--red-dim)' : 'var(--card)',
+                borderColor: task.is_urgent ? '#FF446630' : 'var(--border)',
+                opacity: task.is_done ? 0.5 : 1,
+                cursor: 'pointer',
+              }}
+              onClick={() => setModal({ type: 'edit', data: task })}
+            >
+              <div
+                className={`checkbox ${task.is_done ? 'teal' : task.is_urgent ? 'red' : ''}`}
+                onClick={e => { e.stopPropagation(); toggleDone(task) }}
+              >
+                {task.is_done && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                {!task.is_done && task.is_urgent && <span style={{ color: '#fff', fontSize: 10 }}>⚡</span>}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 14, fontWeight: 500,
+                  textDecoration: task.is_done ? 'line-through' : 'none',
+                  color: task.is_urgent && !task.is_done ? 'var(--red)' : 'var(--text)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}>
+                  {task.text}
+                </div>
+                {task.amount && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{task.amount}€</div>
+                )}
+              </div>
+
+              {assignee
+                ? <Avatar member={assignee} size={28} />
+                : <span style={{ fontSize: 18, opacity: .3 }}>👥</span>}
+            </div>
+          )
+        })}
+
+        <button
+          className="btn-ghost"
+          onClick={() => setModal({ type: 'add', defaultDay: activeDay })}
+          style={{ width: '100%', justifyContent: 'center', fontSize: 13, marginTop: 4 }}
+        >
+          + {t('tasks.add_to_day')} {activeDay}
+        </button>
+      </div>
+
+      {/* Week summary */}
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>
+        {t('tasks.week_summary')}
+      </div>
+      {DAYS_FULL.map((d, i) => {
+        const dayTasks = getTasksForDay(d)
+        const done     = dayTasks.filter(t => t.is_done).length
+        const total    = dayTasks.length
+        const isAct    = d === activeDay
+        return (
+          <div
+            key={d}
+            onClick={() => setActiveDay(d)}
+            className="card"
+            style={{
+              padding: '10px 14px', marginBottom: 6, cursor: 'pointer',
+              background: isAct ? 'var(--accent-dim)' : 'var(--card)',
+              borderColor: isAct ? '#FF6B3550' : 'var(--border)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 26, fontSize: 10, fontWeight: 700, color: isAct ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }}>
+                {DAYS_SHORT[i]}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {total === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--dim)', fontStyle: 'italic' }}>{t('tasks.no_tasks_day')}</div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {dayTasks.slice(0, 3).map(task => (
+                      <span
+                        key={task.id}
+                        style={{
+                          fontSize: 11, fontWeight: 500,
+                          color: task.is_done ? 'var(--dim)' : task.is_urgent ? 'var(--red)' : 'var(--text)',
+                          textDecoration: task.is_done ? 'line-through' : 'none',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120,
+                        }}
+                      >
+                        {task.is_urgent && '⚡ '}{task.text}
+                      </span>
+                    ))}
+                    {total > 3 && <span style={{ fontSize: 11, color: 'var(--dim)' }}>+{total - 3}</span>}
+                  </div>
+                )}
+              </div>
+              {total > 0 && (
+                <div style={{ fontSize: 11, color: done === total ? 'var(--teal)' : 'var(--dim)', fontWeight: 600, flexShrink: 0 }}>
+                  {done}/{total}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
 
       {modal && (
         <TaskModal
           existing={modal.type === 'edit' ? modal.data : null}
-          defaultMember={modal.defaultMember || null}
-          familyId={family.id} members={members} sessionUserId={session.user.id}
-          onSaved={load} onDeleted={load} onClose={() => setModal(null)}
+          defaultDay={modal.defaultDay || activeDay}
+          weekStart={weekStart}
+          familyId={family.id}
+          members={members}
+          sessionUserId={session.user.id}
+          onSaved={load}
+          onDeleted={load}
+          onClose={() => setModal(null)}
         />
       )}
     </div>

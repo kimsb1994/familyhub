@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { getWeekStart, mergeIngredients, groupBy, catColor, DAYS_FULL } from '../lib/constants'
+import { getWeekStart, mergeIngredients, groupBy, catColor, DAYS_FULL, DAYS_SHORT } from '../lib/constants'
 import { Avatar, Spinner } from '../components/ui'
 import { useKioskMode } from '../hooks/useKioskMode'
 import QuickAddModal from '../components/QuickAddModal'
@@ -27,7 +27,7 @@ function Clock() {
 }
 
 // ── Panel card wrapper ─────────────────────────────────────────────────────────
-function Panel({ title, accent, icon, children, style = {} }) {
+function Panel({ title, accent, icon, children, style = {}, noScroll = false }) {
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden', ...style }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -35,27 +35,42 @@ function Panel({ title, accent, icon, children, style = {} }) {
         <span style={{ fontFamily: 'Fraunces, serif', fontSize: 14, fontWeight: 700 }}>{title}</span>
         {accent && <span style={{ fontFamily: 'Fraunces, serif', fontSize: 14, fontWeight: 700, color: 'var(--accent)', fontStyle: 'italic' }}>{accent}</span>}
       </div>
-      <div style={{ flex: 1, overflowY: 'auto' }}>{children}</div>
+      <div style={{ flex: 1, overflowY: noScroll ? 'hidden' : 'auto', minHeight: 0 }}>{children}</div>
     </div>
   )
 }
 
 // ── Tablet meal modal ──────────────────────────────────────────────────────────
-function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, onSaved, onClose }) {
-  const [name,   setName]   = useState(existing?.name || '')
-  const [emoji,  setEmoji]  = useState(existing?.emoji || '')
+function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, saveToLibrary, onSaved, onClose }) {
+  const { session } = useAuth()
+  const [name,   setName]   = useState(existing?.name  || '')
+  const [emoji,  setEmoji]  = useState(existing?.emoji || '🍽️')
+  const [time,   setTime]   = useState(existing?.time_minutes || '')
+  const [diff,   setDiff]   = useState(existing?.difficulty  || 'Fàcil')
   const [saving, setSaving] = useState(false)
 
   async function save() {
     if (!name.trim()) return
     setSaving(true)
-    const payload = { family_id: familyId, meal_type: mealType, day_of_week: dayName, week_start: weekStart, name: name.trim(), emoji: emoji.trim() || '🍽️' }
-    if (existing) {
-      await supabase.from('meals').update({ name: payload.name, emoji: payload.emoji }).eq('id', existing.id)
-    } else {
-      await supabase.from('meals').insert(payload)
+    try {
+      if (existing) {
+        await supabase.from('meals').update({ name: name.trim(), emoji, time_minutes: time, difficulty: diff }).eq('id', existing.id)
+      } else {
+        await supabase.from('meals').insert({
+          family_id: familyId, meal_type: mealType, day_of_week: dayName, week_start: weekStart,
+          name: name.trim(), emoji, time_minutes: time, difficulty: diff,
+          created_by: session?.user?.id,
+        })
+        if (saveToLibrary) {
+          await supabase.from('dishes').insert({
+            family_id: familyId, name: name.trim(), emoji, time_minutes: time, difficulty: diff,
+          })
+        }
+      }
+      onSaved()
+    } finally {
+      setSaving(false)
     }
-    onSaved()
   }
 
   async function del() {
@@ -65,18 +80,144 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, onS
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 380, maxWidth: '90vw' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 400, maxWidth: '90vw' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nou'} {mealType}</h3>
           {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22 }} />
           <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
+          <input className="inp" placeholder="Temps (30 min)" value={time} onChange={e => setTime(e.target.value)} />
+          <select className="inp" value={diff} onChange={e => setDiff(e.target.value)}>
+            {['Fàcil','Mitjana','Difícil'].map(d => <option key={d}>{d}</option>)}
+          </select>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
             {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Afegir'}
+          </button>
+          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Tablet dish picker modal ───────────────────────────────────────────────────
+function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved, onClose }) {
+  const { session } = useAuth()
+  const [dishes,   setDishes]   = useState([])
+  const [search,   setSearch]   = useState('')
+  const [loading,  setLoading]  = useState(true)
+  const [saving,   setSaving]   = useState(null)
+  const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    supabase.from('dishes').select('*, dish_ingredients(*)')
+      .eq('family_id', familyId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { setDishes(data || []); setLoading(false) })
+  }, [familyId])
+
+  const filtered = search
+    ? dishes.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))
+    : dishes
+
+  async function selectDish(dish) {
+    setSaving(dish.id)
+    try {
+      const { data, error } = await supabase.from('meals').insert({
+        family_id: familyId, name: dish.name, emoji: dish.emoji,
+        time_minutes: dish.time_minutes, difficulty: dish.difficulty,
+        meal_type: mealType, day_of_week: dayName, week_start: weekStart,
+        created_by: session?.user?.id,
+      }).select().single()
+      if (error) throw error
+      if (dish.dish_ingredients?.length > 0) {
+        await supabase.from('meal_ingredients').insert(
+          dish.dish_ingredients.map(({ name, qty, unit, category }) => ({
+            meal_id: data.id, name, qty, unit, category,
+          }))
+        )
+      }
+      onSaved(); onClose()
+    } catch {
+      setSaving(null)
+    }
+  }
+
+  if (creating) {
+    return (
+      <TabletMealModal
+        mealType={mealType} familyId={familyId}
+        dayName={dayName} weekStart={weekStart}
+        saveToLibrary
+        onSaved={onSaved} onClose={onClose}
+      />
+    )
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 480, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
+            {mealType === 'Dinar' ? '☀️' : '🌙'} {mealType} · {dayName}
+          </h3>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>Escull un plat de la biblioteca</div>
+        </div>
+
+        <input
+          className="inp"
+          placeholder="Buscar plat..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ marginBottom: 12 }}
+          autoFocus
+        />
+
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 16 }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}><Spinner size={24} /></div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--dim)', fontSize: 13 }}>
+              {search ? 'Sense resultats' : 'Encara no hi ha plats guardats'}
+            </div>
+          ) : (
+            filtered.map(dish => (
+              <div
+                key={dish.id}
+                onClick={() => !saving && selectDish(dish)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px', borderRadius: 12,
+                  background: 'var(--surface)', border: '1px solid var(--border)',
+                  marginBottom: 8, cursor: saving ? 'default' : 'pointer',
+                  opacity: saving && saving !== dish.id ? 0.4 : 1,
+                  transition: 'border-color .15s',
+                }}
+              >
+                <span style={{ fontSize: 28, flexShrink: 0 }}>{dish.emoji || '🍽️'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>{dish.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 10 }}>
+                    {dish.time_minutes && <span>⏱ {dish.time_minutes}</span>}
+                    {dish.difficulty && <span>{dish.difficulty}</span>}
+                    {dish.dish_ingredients?.length > 0 && <span>{dish.dish_ingredients.length} ing.</span>}
+                  </div>
+                </div>
+                {saving === dish.id ? <Spinner size={20} /> : <span style={{ color: 'var(--accent)', fontSize: 20 }}>→</span>}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-primary" onClick={() => setCreating(true)} style={{ flex: 1, justifyContent: 'center' }}>
+            ✨ Crear nou plat
           </button>
           <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
         </div>
@@ -116,7 +257,7 @@ function MenuPanel({ familyId, paneId }) {
           {[['☀️', 'Dinar', dinar], ['🌙', 'Sopar', sopar]].map(([ico, label, meal]) => (
             <div
               key={label}
-              onClick={() => setModal({ mealType: label, existing: meal || null })}
+              onClick={() => setModal({ type: meal ? 'edit' : 'pick', mealType: label, existing: meal || null })}
               style={{ flex: 1, padding: '12px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 0, cursor: 'pointer', transition: 'border-color .15s' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -142,7 +283,17 @@ function MenuPanel({ familyId, paneId }) {
           ))}
         </div>
       </Panel>
-      {modal && (
+      {modal?.type === 'pick' && (
+        <TabletDishPickerModal
+          mealType={modal.mealType}
+          familyId={familyId}
+          dayName={dayName}
+          weekStart={weekStart}
+          onSaved={() => { load(); setModal(null) }}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal?.type === 'edit' && (
         <TabletMealModal
           existing={modal.existing}
           mealType={modal.mealType}
@@ -293,19 +444,124 @@ function EventsPanel({ familyId, members, paneId }) {
   )
 }
 
+// ── Tablet task modal ──────────────────────────────────────────────────────────
+function TabletTaskModal({ existing, defaultDay, familyId, members, sessionUserId, onSaved, onClose }) {
+  const weekStart = getWeekStart()
+  const [text,     setText]     = useState(existing?.text || '')
+  const [day,      setDay]      = useState(existing ? (existing.day_of_week ?? null) : (defaultDay !== undefined ? defaultDay : DAYS_FULL[0]))
+  const [memberId, setMemberId] = useState(existing?.assigned_to || '')
+  const [isUrgent, setIsUrgent] = useState(existing?.is_urgent || false)
+  const [amount,   setAmount]   = useState(existing?.amount || '')
+  const [saving,   setSaving]   = useState(false)
+
+  async function save() {
+    if (!text.trim()) return
+    setSaving(true)
+    const payload = {
+      family_id: familyId,
+      text: text.trim(),
+      day_of_week: day,
+      week_start: weekStart,
+      assigned_to: memberId || null,
+      is_urgent: isUrgent,
+      amount: amount ? parseFloat(amount) : null,
+      is_done: false,
+      created_by: sessionUserId,
+    }
+    existing
+      ? await supabase.from('tasks').update(payload).eq('id', existing.id)
+      : await supabase.from('tasks').insert(payload)
+    onSaved()
+  }
+
+  async function del() {
+    await supabase.from('tasks').delete().eq('id', existing.id)
+    onSaved()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 460, maxWidth: '90vw' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nova'} tasca</h3>
+          {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+        </div>
+
+        {/* Day selector */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+          {DAYS_FULL.map((d, i) => (
+            <button
+              key={d}
+              onClick={() => setDay(d)}
+              style={{
+                padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                background: day === d ? 'var(--accent)' : 'var(--surface)',
+                color: day === d ? '#fff' : 'var(--text)',
+              }}
+            >{DAYS_SHORT[i]}</button>
+          ))}
+          <button
+            onClick={() => setDay(null)}
+            style={{
+              padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: '1px dashed var(--accent)', cursor: 'pointer',
+              background: day === null ? 'var(--accent)' : 'transparent',
+              color: day === null ? '#fff' : 'var(--accent)',
+            }}
+          >🎲 Imprevistos</button>
+        </div>
+
+        <input className="inp" placeholder="Descripció de la tasca *" value={text} onChange={e => setText(e.target.value)} style={{ marginBottom: 10 }} />
+
+        <input className="inp" type="number" placeholder="Import (opcional)" value={amount} onChange={e => setAmount(e.target.value)} style={{ marginBottom: 10 }} />
+
+        {/* Member picker */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          <div
+            onClick={() => setMemberId('')}
+            style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}
+          >👨‍👩‍👧</div>
+          {members.map(m => (
+            <div
+              key={m.id}
+              onClick={() => setMemberId(m.id)}
+              style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }}
+              title={m.name}
+            >{m.name[0].toUpperCase()}</div>
+          ))}
+        </div>
+
+        <div onClick={() => setIsUrgent(p => !p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: 'var(--red-dim)', border: '1px solid #FF446630', marginBottom: 16, cursor: 'pointer' }}>
+          <div className={`checkbox ${isUrgent ? 'red' : ''}`}>
+            {isUrgent && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--red)' }}>⚡ Urgent</span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-primary" onClick={save} disabled={saving || !text.trim()} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Crear'}
+          </button>
+          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Tasks panel ────────────────────────────────────────────────────────────────
-function TasksPanel({ familyId, paneId }) {
-  const [tasks,   setTasks]   = useState([])
-  const [newText, setNewText] = useState('')
-  const [adding,  setAdding]  = useState(false)
+function TasksPanel({ familyId, members, sessionUserId, paneId }) {
+  const weekStart = getWeekStart()
+  const [tasks,  setTasks]  = useState([])
+  const [modal,  setModal]  = useState(null) // { day } | { existing }
 
   const load = useCallback(async () => {
     const { data } = await supabase.from('tasks')
       .select('*, family_members(name,avatar_color)')
-      .eq('family_id', familyId).eq('is_done', false)
-      .order('is_urgent', { ascending: false }).limit(10)
+      .eq('family_id', familyId)
+      .eq('week_start', weekStart)
+      .order('is_urgent', { ascending: false })
     setTasks(data || [])
-  }, [familyId])
+  }, [familyId, weekStart])
 
   useEffect(() => {
     load()
@@ -316,45 +572,124 @@ function TasksPanel({ familyId, paneId }) {
   }, [load, familyId])
 
   async function toggleDone(task) {
-    await supabase.from('tasks').update({ is_done: true }).eq('id', task.id)
-    setTasks(p => p.filter(t => t.id !== task.id))
-  }
-
-  async function addTask(e) {
-    e.preventDefault()
-    if (!newText.trim()) return
-    setAdding(true)
-    await supabase.from('tasks').insert({ family_id: familyId, text: newText.trim(), is_done: false, is_urgent: false })
-    setNewText('')
-    setAdding(false)
+    await supabase.from('tasks').update({ is_done: !task.is_done }).eq('id', task.id)
     load()
   }
 
+  const FAMILY_COLOR = '#FF6B35'
+  const ALL_ROWS = [
+    ...DAYS_FULL.map((d, i) => ({ key: d, label: DAYS_SHORT[i], isExtra: false })),
+    { key: null, label: '?', isExtra: true },
+  ]
+
+  const byDay = ALL_ROWS.reduce((acc, { key }) => {
+    acc[key] = tasks.filter(t => (key === null ? !t.day_of_week : t.day_of_week === key))
+    return acc
+  }, {})
+
+  function cardBg(task) {
+    if (task.is_done) return '#00C9A722'
+    const color = task.family_members?.avatar_color || FAMILY_COLOR
+    return color + '28'
+  }
+  function cardBorder(task) {
+    if (task.is_done) return '#00C9A750'
+    const color = task.family_members?.avatar_color || FAMILY_COLOR
+    return color + '70'
+  }
+
   return (
-    <Panel title="Tasques" accent="& imprevistos" icon="✅" style={{ height: '100%' }}>
-      <form onSubmit={addTask} style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <input
-          className="inp"
-          placeholder="Nova tasca..."
-          value={newText}
-          onChange={e => setNewText(e.target.value)}
-          style={{ flex: 1, fontSize: 13, padding: '6px 10px' }}
+    <Panel title="Tasques" accent="setmanals" icon="✅" noScroll style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* 8-row layout: 7 days + imprevistos */}
+      <div style={{ display: 'grid', gridTemplateRows: 'repeat(8, minmax(80px, 1fr))', gap: 6, height: '100%', overflowY: 'auto' }}>
+        {ALL_ROWS.map(({ key, label, isExtra }) => {
+          const dayTasks = byDay[key] || []
+          const pending  = dayTasks.filter(t => !t.is_done).length
+          return (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, background: isExtra ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 14, padding: '0 18px', overflow: 'hidden', border: isExtra ? '1px dashed var(--accent)' : 'none' }}>
+              {/* Day label */}
+              <div style={{ width: 56, flexShrink: 0, textAlign: 'center' }}>
+                <div style={{ fontSize: isExtra ? 14 : 18, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.05em', lineHeight: 1.2 }}>
+                  {isExtra ? '🎲 Impre­vistos' : label}
+                </div>
+                {pending > 0 && (
+                  <div style={{ background: 'var(--accent)', color: '#fff', borderRadius: 99, fontSize: 13, fontWeight: 700, padding: '2px 8px', marginTop: 4, display: 'inline-block' }}>{pending}</div>
+                )}
+              </div>
+
+              {/* Separator */}
+              <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '10px 0', flexShrink: 0 }} />
+
+              {/* Horizontal task chips */}
+              <div style={{ flex: 1, display: 'flex', gap: 8, overflowX: 'auto', alignItems: 'center', minWidth: 0, padding: '8px 0' }}>
+                {dayTasks.length === 0 && (
+                  <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic' }}>Cap tasca</div>
+                )}
+                {dayTasks.map(task => (
+                  <div
+                    key={task.id}
+                    onClick={() => toggleDone(task)}
+                    style={{
+                      position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                      flexShrink: 0, alignSelf: 'stretch', minWidth: 200, padding: '14px 16px', borderRadius: 14,
+                      background: cardBg(task),
+                      border: `1.5px solid ${cardBorder(task)}`,
+                      cursor: 'pointer', userSelect: 'none',
+                    }}
+                  >
+                    {/* Edit button */}
+                    <button
+                      onClick={e => { e.stopPropagation(); setModal({ existing: task }) }}
+                      style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--muted)', padding: 2, lineHeight: 1 }}
+                    >✏️</button>
+
+                    {/* Urgent badge */}
+                    {task.is_urgent && <div style={{ fontSize: 14, lineHeight: 1, marginBottom: 4 }}>⚡</div>}
+
+                    {/* Task text */}
+                    <div style={{ fontSize: 17, fontWeight: task.is_urgent ? 700 : 600, color: task.is_urgent ? 'var(--red)' : 'var(--text)', textDecoration: task.is_done ? 'line-through' : 'none', paddingRight: 20 }}>
+                      {task.text}
+                    </div>
+
+                    {/* Bottom row: amount + avatar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                      {task.amount
+                        ? <div style={{ fontSize: 14, color: 'var(--muted)' }}>{task.amount}€</div>
+                        : <div />
+                      }
+                      {task.family_members
+                        ? <div style={{ width: 32, height: 32, borderRadius: '50%', background: task.family_members.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>
+                            {task.family_members.name[0].toUpperCase()}
+                          </div>
+                        : <div style={{ width: 32, height: 32, borderRadius: '50%', background: FAMILY_COLOR + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>👨‍👩‍👧</div>
+                      }
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add button */}
+              <button
+                className="btn-ghost"
+                onClick={() => setModal({ day: key })}
+                style={{ padding: '8px 16px', fontSize: 22, fontWeight: 700, borderRadius: 12, flexShrink: 0 }}
+              >+</button>
+            </div>
+          )
+        })}
+      </div>
+
+      {modal && (
+        <TabletTaskModal
+          existing={modal.existing}
+          defaultDay={modal.day}
+          familyId={familyId}
+          members={members}
+          sessionUserId={sessionUserId}
+          onSaved={() => { setModal(null); load() }}
+          onClose={() => setModal(null)}
         />
-        <button className="btn-primary" type="submit" disabled={adding || !newText.trim()} style={{ padding: '6px 12px', fontSize: 13, flexShrink: 0 }}>+</button>
-      </form>
-      {tasks.length === 0 && <div style={{ fontSize: 13, color: 'var(--dim)', textAlign: 'center', padding: '10px 0' }}>Tot al dia! 🎉</div>}
-      {tasks.map(task => (
-        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, background: task.is_urgent ? 'var(--red-dim)' : 'var(--surface)', border: `1px solid ${task.is_urgent ? '#FF446630' : 'var(--border)'}`, marginBottom: 5 }}>
-          <div onClick={() => toggleDone(task)} style={{ width: 20, height: 20, borderRadius: 5, border: `2px solid ${task.is_urgent ? 'var(--red)' : 'var(--border)'}`, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {task.is_urgent && <span style={{ fontSize: 11 }}>⚡</span>}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: task.is_urgent ? 600 : 500, color: task.is_urgent ? 'var(--red)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.text}</div>
-            {task.amount && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{task.amount}€</div>}
-          </div>
-          {task.family_members && <Avatar member={task.family_members} size={24} />}
-        </div>
-      ))}
+      )}
     </Panel>
   )
 }
@@ -620,7 +955,7 @@ function TabletPane({ familyId, members, sessionUserId, defaultSection, side }) 
       {section === 'calendar' && <TabletCalendar familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
       {section === 'menu'     && <MenuPanel     familyId={familyId} paneId={paneId} />}
       {section === 'shopping' && <ShoppingPanel familyId={familyId} paneId={paneId} />}
-      {section === 'tasks'    && <TasksPanel    familyId={familyId} paneId={paneId} />}
+      {section === 'tasks'    && <TasksPanel    familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
       {section === 'events'   && <EventsPanel   familyId={familyId} members={members} paneId={paneId} />}
     </div>
   )

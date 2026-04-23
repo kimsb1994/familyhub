@@ -169,7 +169,7 @@ select.inp option { background: var(--surface); }
   width: 100%; max-width: 480px;
   border-radius: 22px 22px 0 0;
   padding: 24px 20px 40px;
-  max-height: 90vh; overflow-y: auto;
+  max-height: 90dvh; overflow-y: auto;
   animation: slideUp .25s ease;
 }
 .modal-drag {
@@ -195,3 +195,25 @@ select.inp option { background: var(--surface); }
   transition: all .15s; cursor: pointer;
 }
 .shop-row:hover { background: var(--card-hover); }
+
+/* ── Responsive: pantallas pequeñas (≤ 380px) ── */
+@media (max-width: 380px) {
+  .section-title { font-size: 18px; }
+  .card { padding: 12px; }
+  .modal-sheet { padding: 20px 14px 28px; }
+  .nav-btn { padding: 6px 6px; font-size: 9px; gap: 2px; }
+  .btn-primary, .btn-ghost { font-size: 12px; }
+}
+
+/* ── Responsive: landscape en móvil ── */
+@media (max-height: 600px) and (orientation: landscape) {
+  .modal-overlay { align-items: center; }
+  .modal-sheet {
+    border-radius: 16px;
+    max-height: 90dvh;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 16px 20px 24px;
+  }
+  .nav-btn { padding: 4px 8px; gap: 1px; font-size: 9px; }
+}

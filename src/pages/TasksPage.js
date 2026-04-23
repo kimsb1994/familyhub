@@ -233,7 +233,7 @@ export default function TasksPage({ members }) {
       {members.length > 0 && (
         <div style={{
           position: 'fixed',
-          bottom: 62,
+          bottom: 'calc(62px + max(16px, env(safe-area-inset-bottom, 0px)))',
           left: '50%', transform: 'translateX(-50%)',
           width: '100%', maxWidth: 480,
           background: 'var(--surface)',

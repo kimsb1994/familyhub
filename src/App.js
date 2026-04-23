@@ -98,7 +98,7 @@ function useIsTablet() {
 function InstallBanner({ onInstall, onDismiss }) {
   const { t } = useTranslation()
   return (
-    <div style={{ position:'fixed', bottom:88, left:'50%', transform:'translateX(-50%)', width:'calc(100% - 32px)', maxWidth:440, background:'var(--card)', border:'1px solid #FF6B3540', borderRadius:14, padding:'12px 16px', display:'flex', alignItems:'center', gap:12, zIndex:200, boxShadow:'0 8px 32px #00000060' }}>
+    <div style={{ position:'fixed', bottom:'calc(88px + max(0px, env(safe-area-inset-bottom, 0px) - 16px))', left:'50%', transform:'translateX(-50%)', width:'calc(100% - 32px)', maxWidth:440, background:'var(--card)', border:'1px solid #FF6B3540', borderRadius:14, padding:'12px 16px', display:'flex', alignItems:'center', gap:12, zIndex:200, boxShadow:'0 8px 32px #00000060' }}>
       <div style={{ fontSize:32, flexShrink:0 }}>🏡</div>
       <div style={{ flex:1 }}>
         <div style={{ fontSize:13, fontWeight:700 }}>{t('app.install_title')}</div>
@@ -197,10 +197,10 @@ function AppInner() {
 
   // MOBILE
   return (
-    <div style={{ maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
+    <div style={{ width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100dvh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
       {!isOnline && <OfflineBanner />}
 
-      <div style={{ flex:1, overflowY:'auto', paddingBottom:84, display:'flex', flexDirection:'column' }}>
+      <div style={{ flex:1, overflowY:'auto', paddingBottom:'calc(84px + max(0px, env(safe-area-inset-bottom, 0px) - 16px))', display:'flex', flexDirection:'column' }}>
         {view === 'home'     && <Dashboard    members={members} onNavigate={setView} />}
         {view === 'calendar' && <CalendarPage members={members} />}
         {view === 'menu'     && <MenuPage />}

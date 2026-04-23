@@ -45,7 +45,8 @@ export default function BottomNav({ current, onChange, badges = {} }) {
       width: '100%', maxWidth: 480,
       background: 'var(--surface)EE', backdropFilter: 'blur(20px)',
       borderTop: '1px solid var(--border)',
-      padding: '8px 2px 16px',
+      paddingTop: 8, paddingLeft: 4, paddingRight: 4,
+      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
       display: 'flex', justifyContent: 'space-around', alignItems: 'center',
       zIndex: 100,
     }}>

@@ -620,8 +620,8 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
               {/* Separator */}
               <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '10px 0', flexShrink: 0 }} />
 
-              {/* Horizontal task chips */}
-              <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'stretch', minWidth: 0, padding: '8px 0', overflowX: 'auto' }}>
+              {/* Horizontal task chips — flex, no scroll, always fit */}
+              <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'stretch', minWidth: 0, padding: '8px 0', overflow: 'hidden' }}>
                 {dayTasks.length === 0 && (
                   <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', alignSelf: 'center' }}>Cap tasca</div>
                 )}
@@ -631,7 +631,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                     onClick={() => toggleDone(task)}
                     style={{
                       position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                      flex: '1 0 0', minWidth: 110, maxWidth: 220, padding: '10px 12px', borderRadius: 12,
+                      flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 12,
                       background: cardBg(task),
                       border: `1.5px solid ${cardBorder(task)}`,
                       cursor: 'pointer', userSelect: 'none',
@@ -647,7 +647,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                     {task.is_urgent && <div style={{ fontSize: 14, lineHeight: 1, marginBottom: 4 }}>⚡</div>}
 
                     {/* Task text */}
-                    <div style={{ fontSize: 17, fontWeight: task.is_urgent ? 700 : 600, color: task.is_urgent ? 'var(--red)' : 'var(--text)', textDecoration: task.is_done ? 'line-through' : 'none', paddingRight: 20 }}>
+                    <div style={{ fontSize: 14, fontWeight: task.is_urgent ? 700 : 600, color: task.is_urgent ? 'var(--red)' : 'var(--text)', textDecoration: task.is_done ? 'line-through' : 'none', paddingRight: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {task.text}
                     </div>
 

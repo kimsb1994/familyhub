@@ -80,7 +80,7 @@ export default function ShoppingPage({ onNavigate }) {
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
 
   return (
-    <div style={{ padding: '20px 16px', minHeight: '100%' }} className="fu">
+    <div style={{ padding: '20px 16px' }} className="fu">
       <PageHeader
         title={t('shopping.title')} accent={t('shopping.accent')}
         subtitle={meals.length > 0 ? `${meals.length} ${t('shopping.n_dishes')}` : ''}

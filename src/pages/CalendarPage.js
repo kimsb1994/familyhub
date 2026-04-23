@@ -228,7 +228,7 @@ export default function CalendarPage({ members }) {
   const popupEvents = dayPopup ? (evtByDay[parseInt(dayPopup.split('-')[2])] || []) : []
 
   return (
-    <div style={{ padding: '20px 16px' }} className="fu">
+    <div style={{ padding: '20px 16px', minHeight: '100%' }} className="fu">
       <PageHeader title="Calendari" accent="Familiar" />
 
       {/* ── Mini calendar ── */}
@@ -242,14 +242,14 @@ export default function CalendarPage({ members }) {
         </div>
 
         {/* Weekday headers */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3, marginBottom: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 8 }}>
           {['Dl','Dt','Dc','Dj','Dv','Ds','Dg'].map(d => (
-            <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', fontWeight: 600, padding: '3px 0' }}>{d}</div>
+            <div key={d} style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', fontWeight: 600, padding: '4px 0' }}>{d}</div>
           ))}
         </div>
 
         {/* Day cells */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
           {[...Array(offset)].map((_, i) => <div key={`e${i}`} />)}
           {[...Array(daysInMonth)].map((_, i) => {
             const d = i + 1
@@ -260,8 +260,8 @@ export default function CalendarPage({ members }) {
                 key={d}
                 onClick={() => handleDayClick(d)}
                 style={{
-                  textAlign: 'center', padding: '6px 0 4px', borderRadius: 8,
-                  fontSize: 12, fontWeight: isToday ? 700 : 400, cursor: 'pointer',
+                  textAlign: 'center', padding: '10px 0 8px', borderRadius: 10,
+                  fontSize: 15, fontWeight: isToday ? 700 : 400, cursor: 'pointer',
                   background: isToday ? 'var(--accent-dim)' : 'transparent',
                   color: isToday ? 'var(--accent)' : 'var(--text)',
                   transition: 'background .12s',
@@ -270,12 +270,12 @@ export default function CalendarPage({ members }) {
                 <div>{d}</div>
                 {/* Member color dots */}
                 {evts.length > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 3 }}>
                     {evts.slice(0, 3).map((e, j) => (
                       <div
                         key={j}
                         style={{
-                          width: 5, height: 5, borderRadius: '50%',
+                          width: 6, height: 6, borderRadius: '50%',
                           background: e.family_members?.avatar_color || e.color || 'var(--accent)',
                         }}
                       />

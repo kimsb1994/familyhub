@@ -7,6 +7,7 @@ import { Avatar, Spinner } from '../components/ui'
 import { useKioskMode } from '../hooks/useKioskMode'
 import QuickAddModal from '../components/QuickAddModal'
 import ProfilePage from './ProfilePage'
+import { useGoogleCalendarSync } from '../hooks/useGoogleCalendarSync'
 
 const EVENT_COLORS = ['#FF6B35','#00C9A7','#FFD166','#8B5CF6','#06B6D4','#F43F5E','#84CC16']
 
@@ -1069,7 +1070,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
 }
 
 // ── Tablet event modal (centered) ──────────────────────────────────────────────
-function TabletEventModal({ existing, defaultDate, familyId, members, sessionUserId, onSaved, onClose }) {
+function TabletEventModal({ existing, defaultDate, familyId, members, sessionUserId, gcalPush, onSaved, onClose }) {
   const [title,    setTitle]    = useState(existing?.title || '')
   const [date,     setDate]     = useState(existing?.event_date || defaultDate || new Date().toISOString().split('T')[0])
   const [time,     setTime]     = useState(existing?.event_time?.slice(0,5) || '')
@@ -1082,13 +1083,21 @@ function TabletEventModal({ existing, defaultDate, familyId, members, sessionUse
     if (!title.trim()) return
     setSaving(true)
     const payload = { family_id: familyId, title: title.trim(), event_date: date, event_time: time || null, color, member_id: memberId || null, is_urgent: isUrgent, created_by: sessionUserId }
-    existing
-      ? await supabase.from('events').update(payload).eq('id', existing.id)
-      : await supabase.from('events').insert(payload)
+    if (existing) {
+      await supabase.from('events').update(payload).eq('id', existing.id)
+      if (gcalPush) await gcalPush('update', { ...payload, id: existing.id }, existing.gcal_event_id)
+    } else {
+      const { data } = await supabase.from('events').insert(payload).select().single()
+      if (gcalPush && data) {
+        const result = await gcalPush('create', data)
+        if (result?.gcal_id) await supabase.from('events').update({ gcal_event_id: result.gcal_id }).eq('id', data.id)
+      }
+    }
     onSaved()
   }
 
   async function del() {
+    if (gcalPush) await gcalPush('delete', existing, existing.gcal_event_id)
     await supabase.from('events').delete().eq('id', existing.id)
     onSaved()
   }
@@ -1137,12 +1146,26 @@ function TabletEventModal({ existing, defaultDate, familyId, members, sessionUse
   )
 }
 
+// ── Google icon (reusable within calendar) ────────────────────────────────────
+function GCalIcon({ size = 14, style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style}>
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+  )
+}
+
 // ── Tablet calendar (left half) ────────────────────────────────────────────────
 function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
   const [events,  setEvents]  = useState([])
   const [month,   setMonth]   = useState(new Date())
   const [selDay,  setSelDay]  = useState(null)
   const [modal,   setModal]   = useState(null)
+
+  const { connected, checking, gcalEvents, connect, disconnect, loadMonth, pushEvent } = useGoogleCalendarSync()
 
   const load = useCallback(async () => {
     const y = month.getFullYear(), m = String(month.getMonth()+1).padStart(2,'0')
@@ -1164,13 +1187,18 @@ function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
     return () => supabase.removeChannel(ch)
   }, [load, familyId])
 
+  useEffect(() => {
+    loadMonth(month.getFullYear(), month.getMonth() + 1)
+  }, [month, loadMonth])
+
   const today         = new Date()
   const daysInMonth   = new Date(month.getFullYear(), month.getMonth()+1, 0).getDate()
   const firstWeekday  = new Date(month.getFullYear(), month.getMonth(), 1).getDay()
   const offset        = firstWeekday === 0 ? 6 : firstWeekday - 1
   const monthStr      = month.toLocaleDateString('ca-ES', { month: 'long', year: 'numeric' })
 
-  const evtByDay = events.reduce((a, e) => {
+  const allEvents = [...events, ...gcalEvents]
+  const evtByDay = allEvents.reduce((a, e) => {
     const d = parseInt(e.event_date.split('-')[2])
     ;(a[d] = a[d] || []).push(e)
     return a
@@ -1186,7 +1214,12 @@ function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
       {/* Month header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ fontFamily: 'Fraunces, serif', fontSize: 16, fontWeight: 700, textTransform: 'capitalize' }}>{monthStr}</div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {!checking && (
+            connected
+              ? <button className="btn-ghost" style={{ padding: '3px 8px', fontSize: 11, color: '#4285F4', display: 'flex', alignItems: 'center', gap: 4 }} onClick={disconnect}><GCalIcon size={12} /> Connectat</button>
+              : <button className="btn-ghost" style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }} onClick={connect}><GCalIcon size={12} /> Sincronitzar</button>
+          )}
           <button className="btn-ghost" style={{ padding: '3px 8px', fontSize: 13 }} onClick={() => setMonth(d => new Date(d.getFullYear(), d.getMonth()-1, 1))}>‹</button>
           <button className="btn-ghost" style={{ padding: '3px 8px', fontSize: 13 }} onClick={() => setMonth(d => new Date(d.getFullYear(), d.getMonth()+1, 1))}>›</button>
         </div>
@@ -1222,7 +1255,7 @@ function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
               {evts.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 2, marginTop: 2 }}>
                   {evts.slice(0, 3).map((e, j) => (
-                    <div key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: e.family_members?.avatar_color || e.color || 'var(--accent)' }} />
+                    <div key={j} style={{ width: 4, height: 4, borderRadius: '50%', background: e._isGoogle ? '#4285F4' : (e.family_members?.avatar_color || e.color || 'var(--accent)') }} />
                   ))}
                 </div>
               )}
@@ -1249,17 +1282,20 @@ function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
                 {selEvents.map(e => (
                   <div
                     key={e.id}
-                    onClick={() => { setSelDay(null); setModal({ type: 'edit', data: e }) }}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                    onClick={() => { if (e._isGoogle) return; setSelDay(null); setModal({ type: 'edit', data: e }) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: e._isGoogle ? 'default' : 'pointer' }}
                   >
-                    <div style={{ width: 4, borderRadius: 2, background: e.family_members?.avatar_color || e.color || 'var(--accent)', alignSelf: 'stretch', flexShrink: 0 }} />
+                    <div style={{ width: 4, borderRadius: 2, background: e._isGoogle ? '#4285F4' : (e.family_members?.avatar_color || e.color || 'var(--accent)'), alignSelf: 'stretch', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {e.is_urgent && '⚡ '}{e.title}
                       </div>
                       {e.event_time && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{e.event_time.slice(0,5)}</div>}
                     </div>
-                    {e.family_members && <Avatar member={e.family_members} size={26} />}
+                    {e._isGoogle
+                      ? <GCalIcon size={14} style={{ flexShrink: 0, opacity: 0.8 }} />
+                      : e.family_members && <Avatar member={e.family_members} size={26} />
+                    }
                   </div>
                 ))}
               </div>
@@ -1275,6 +1311,7 @@ function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
           familyId={familyId}
           members={members}
           sessionUserId={sessionUserId}
+          gcalPush={pushEvent}
           onSaved={() => { load(); setModal(null) }}
           onClose={() => setModal(null)}
         />

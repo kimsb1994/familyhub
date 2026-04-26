@@ -1517,12 +1517,323 @@ function DishesPanel({ familyId, paneId }) {
   )
 }
 
+// ── Subscription modal ─────────────────────────────────────────────────────────
+const SUB_CATEGORIES = ['Streaming','Música','Jocs','Software','Cloud','Fitness','Educació','Notícies','Altres']
+
+function SubscriptionModal({ existing, familyId, onSaved, onClose }) {
+  const [name,       setName]       = useState(existing?.name || '')
+  const [emoji,      setEmoji]      = useState(existing?.emoji || '💳')
+  const [amount,     setAmount]     = useState(existing?.amount || '')
+  const [category,   setCategory]   = useState(existing?.category || 'Altres')
+  const [billingDay, setBillingDay] = useState(existing?.billing_day || 1)
+  const [saving,     setSaving]     = useState(false)
+
+  async function save() {
+    if (!name.trim() || !amount) return
+    setSaving(true)
+    const payload = { family_id: familyId, name: name.trim(), emoji, amount: parseFloat(amount), category, billing_day: parseInt(billingDay), is_active: true }
+    existing
+      ? await supabase.from('subscriptions').update(payload).eq('id', existing.id)
+      : await supabase.from('subscriptions').insert(payload)
+    onSaved()
+  }
+
+  async function del() {
+    await supabase.from('subscriptions').delete().eq('id', existing.id)
+    onSaved()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 440, maxWidth: '90vw' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nova'} subscripció</h3>
+          {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <input className="inp" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
+          <input className="inp" placeholder="Netflix, Spotify, Amazon..." value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Import mensual (€)</div>
+            <input className="inp" type="number" step="0.01" placeholder="9.99" value={amount} onChange={e => setAmount(e.target.value)} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Dia de cobrament</div>
+            <input className="inp" type="number" min="1" max="31" value={billingDay} onChange={e => setBillingDay(e.target.value)} />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>Categoria</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {SUB_CATEGORIES.map(c => (
+              <button key={c} onClick={() => setCategory(c)} style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, border: 'none', cursor: 'pointer', fontWeight: category === c ? 700 : 400, background: category === c ? 'var(--accent)' : 'var(--surface)', color: category === c ? '#fff' : 'var(--text)' }}>{c}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-primary" onClick={save} disabled={saving || !name.trim() || !amount} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Afegir'}
+          </button>
+          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Expense modal ──────────────────────────────────────────────────────────────
+const EXPENSE_CATEGORIES = ['Alimentació','Transport','Salut','Llar','Roba','Educació','Oci','Tecnologia','Restaurants','Altres']
+
+function ExpenseModal({ existing, familyId, members, onSaved, onClose }) {
+  const [name,     setName]     = useState(existing?.name || '')
+  const [emoji,    setEmoji]    = useState(existing?.emoji || '🛍️')
+  const [amount,   setAmount]   = useState(existing?.amount || '')
+  const [category, setCategory] = useState(existing?.category || 'Altres')
+  const [date,     setDate]     = useState(existing?.expense_date || new Date().toISOString().split('T')[0])
+  const [memberId, setMemberId] = useState(existing?.member_id || null)
+  const [notes,    setNotes]    = useState(existing?.notes || '')
+  const [saving,   setSaving]   = useState(false)
+
+  async function save() {
+    if (!name.trim() || !amount) return
+    setSaving(true)
+    const payload = { family_id: familyId, name: name.trim(), emoji, amount: parseFloat(amount), category, expense_date: date, member_id: memberId || null, notes: notes || null }
+    existing
+      ? await supabase.from('expenses').update(payload).eq('id', existing.id)
+      : await supabase.from('expenses').insert(payload)
+    onSaved()
+  }
+
+  async function del() {
+    await supabase.from('expenses').delete().eq('id', existing.id)
+    onSaved()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 460, maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexShrink: 0 }}>
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nova'} despesa</h3>
+          {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+        </div>
+
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input className="inp" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
+            <input className="inp" placeholder="Nom de la despesa *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Import (€) *</div>
+              <input className="inp" type="number" step="0.01" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Data</div>
+              <input className="inp" type="date" value={date} onChange={e => setDate(e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>Categoria</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {EXPENSE_CATEGORIES.map(c => (
+                <button key={c} onClick={() => setCategory(c)} style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, border: 'none', cursor: 'pointer', fontWeight: category === c ? 700 : 400, background: category === c ? '#00C9A7' : 'var(--surface)', color: category === c ? '#fff' : 'var(--text)' }}>{c}</button>
+              ))}
+            </div>
+          </div>
+
+          {members?.length > 1 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>Qui ha gastat?</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div onClick={() => setMemberId(null)} style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}>👨‍👩‍👧</div>
+                {members.map(m => (
+                  <div key={m.id} onClick={() => setMemberId(m.id)} style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }} title={m.name}>{m.name[0].toUpperCase()}</div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Notes (opcional)</div>
+            <input className="inp" placeholder="Supermercat, botiga..." value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+          <button className="btn-primary" onClick={save} disabled={saving || !name.trim() || !amount} style={{ flex: 1, justifyContent: 'center' }}>
+            {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Afegir despesa'}
+          </button>
+          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Expenses panel ─────────────────────────────────────────────────────────────
+function ExpensesPanel({ familyId, members, paneId }) {
+  const [subs,     setSubs]     = useState([])
+  const [expenses, setExpenses] = useState([])
+  const [tab,      setTab]      = useState('subs')
+  const [modal,    setModal]    = useState(null)
+  const [month,    setMonth]    = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+
+  const [y, m] = month.split('-').map(Number)
+  const monthStart = `${month}-01`
+  const monthEnd   = `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+  const monthLabel = new Date(y, m - 1, 15).toLocaleDateString('ca-ES', { month: 'long', year: 'numeric' })
+
+  const load = useCallback(async () => {
+    const [s, e] = await Promise.all([
+      supabase.from('subscriptions').select('*').eq('family_id', familyId).eq('is_active', true).order('amount', { ascending: false }),
+      supabase.from('expenses').select('*').eq('family_id', familyId).gte('expense_date', monthStart).lte('expense_date', monthEnd).order('expense_date', { ascending: false }),
+    ])
+    setSubs(s.data || [])
+    setExpenses(e.data || [])
+  }, [familyId, monthStart, monthEnd])
+
+  useEffect(() => {
+    load()
+    const ch = supabase.channel(`hub-exp-${paneId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions', filter: `family_id=eq.${familyId}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses',      filter: `family_id=eq.${familyId}` }, load)
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [load, familyId])
+
+  function shiftMonth(delta) {
+    const d = new Date(y, m - 1 + delta, 1)
+    setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+
+  const totalSubs     = subs.reduce((acc, x) => acc + parseFloat(x.amount), 0)
+  const totalExpenses = expenses.reduce((acc, x) => acc + parseFloat(x.amount), 0)
+  const totalMonth    = totalSubs + totalExpenses
+
+  return (
+    <>
+      <Panel title="Gestió de" accent="despeses" icon="💰" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Summary cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12, flexShrink: 0 }}>
+          {[
+            { label: 'Subscripcions', value: totalSubs,     sub: 'al mes',      color: 'var(--accent)' },
+            { label: 'Compres',       value: totalExpenses, sub: monthLabel,    color: '#00C9A7' },
+            { label: 'Total mes',     value: totalMonth,    sub: `${(totalSubs * 12).toFixed(0)}€ / any`, color: 'var(--accent)', dim: true },
+          ].map(({ label, value, sub, color, dim }) => (
+            <div key={label} style={{ background: dim ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 12, padding: '10px 12px', border: `1px solid ${dim ? 'var(--accent-glow)' : 'var(--border)'}` }}>
+              <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1 }}>{value.toFixed(2)}€</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', gap: 3, marginBottom: 10, background: 'var(--surface)', borderRadius: 10, padding: 3, flexShrink: 0 }}>
+          <button onClick={() => setTab('subs')} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: tab === 'subs' ? 'var(--accent)' : 'transparent', color: tab === 'subs' ? '#fff' : 'var(--muted)', transition: 'all .15s' }}>
+            💳 Subscripcions ({subs.length})
+          </button>
+          <button onClick={() => setTab('expenses')} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: tab === 'expenses' ? '#00C9A7' : 'transparent', color: tab === 'expenses' ? '#fff' : 'var(--muted)', transition: 'all .15s' }}>
+            🛍️ Compres ({expenses.length})
+          </button>
+        </div>
+
+        {/* Subscriptions list */}
+        {tab === 'subs' && (
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button className="btn-primary" onClick={() => setModal({ type: 'sub' })} style={{ width: '100%', justifyContent: 'center', marginBottom: 2, flexShrink: 0 }}>
+              + Nova subscripció
+            </button>
+            {subs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--muted)', fontSize: 13 }}>Sense subscripcions. Afegeix-ne una!</div>
+            ) : subs.map(sub => (
+              <div key={sub.id} onClick={() => setModal({ type: 'sub', existing: sub })}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                <span style={{ fontSize: 26, flexShrink: 0 }}>{sub.emoji || '💳'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{sub.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{sub.category} · dia {sub.billing_day}</div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--accent)' }}>{parseFloat(sub.amount).toFixed(2)}€</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>al mes</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Expenses list */}
+        {tab === 'expenses' && (
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* Month navigation */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexShrink: 0 }}>
+              <button className="btn-ghost" style={{ padding: '4px 10px', fontSize: 14 }} onClick={() => shiftMonth(-1)}>‹</button>
+              <div style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>{monthLabel}</div>
+              <button className="btn-ghost" style={{ padding: '4px 10px', fontSize: 14 }} onClick={() => shiftMonth(1)}>›</button>
+              <button className="btn-primary" onClick={() => setModal({ type: 'expense' })} style={{ padding: '6px 14px', fontSize: 12, flexShrink: 0 }}>+ Afegir</button>
+            </div>
+
+            {expenses.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--muted)', fontSize: 13 }}>Sense despeses per {monthLabel}</div>
+            ) : expenses.map(exp => {
+              const mem = members.find(x => x.id === exp.member_id)
+              return (
+                <div key={exp.id} onClick={() => setModal({ type: 'expense', existing: exp })}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 26, flexShrink: 0 }}>{exp.emoji || '🛍️'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1, display: 'flex', gap: 8 }}>
+                      <span>{new Date(exp.expense_date + 'T12:00').toLocaleDateString('ca-ES', { day: 'numeric', month: 'short' })}</span>
+                      {exp.category && <span>{exp.category}</span>}
+                      {exp.notes && <span style={{ fontStyle: 'italic' }}>{exp.notes}</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {mem && (
+                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: mem.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff' }}>
+                        {mem.name[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 17, fontWeight: 800, color: '#00C9A7' }}>{parseFloat(exp.amount).toFixed(2)}€</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Panel>
+
+      {modal?.type === 'sub' && (
+        <SubscriptionModal existing={modal.existing} familyId={familyId} onSaved={() => { load(); setModal(null) }} onClose={() => setModal(null)} />
+      )}
+      {modal?.type === 'expense' && (
+        <ExpenseModal existing={modal.existing} familyId={familyId} members={members} onSaved={() => { load(); setModal(null) }} onClose={() => setModal(null)} />
+      )}
+    </>
+  )
+}
+
 // ── Pane navigation ────────────────────────────────────────────────────────────
 const PANE_SECTIONS = [
   { id: 'calendar', icon: '📅', label: 'Calendari' },
   { id: 'menu',     icon: '🍽️', label: 'Menú'      },
   { id: 'dishes',   icon: '📖', label: 'Plats'      },
   { id: 'shopping', icon: '🛒', label: 'Compra'    },
+  { id: 'expenses', icon: '💰', label: 'Gastos'    },
   { id: 'tasks',    icon: '✅', label: 'Tasques'   },
   { id: 'events',   icon: '📋', label: 'Events'    },
   { id: 'settings', icon: '⚙️', label: 'Ajustos'  },
@@ -1566,6 +1877,7 @@ function TabletPane({ familyId, members, sessionUserId, defaultSection, side }) 
       {section === 'menu'     && <MenuPanel     familyId={familyId} members={members} paneId={paneId} />}
       {section === 'dishes'   && <DishesPanel   familyId={familyId} paneId={paneId} />}
       {section === 'shopping' && <ShoppingPanel familyId={familyId} paneId={paneId} />}
+      {section === 'expenses' && <ExpensesPanel familyId={familyId} members={members} paneId={paneId} />}
       {section === 'tasks'    && <TasksPanel    familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
       {section === 'events'   && <EventsPanel   familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
       {section === 'settings' && <SettingsPanel members={members} />}

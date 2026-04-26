@@ -12,7 +12,8 @@
       "PowerShell(cd \"C:\\\\Users\\\\kimsb\\\\Desktop\\\\familyhub\"; npm install 2>&1 | Tee-Object -FilePath \"C:\\\\Users\\\\kimsb\\\\AppData\\\\Local\\\\Temp\\\\npm-install.txt\"; Write-Host \"Exit: $LASTEXITCODE\")",
       "mcp__supabase__apply_migration",
       "mcp__supabase__deploy_edge_function",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__list_tables"
     ]
   }
 }

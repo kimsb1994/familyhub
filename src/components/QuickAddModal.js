@@ -236,29 +236,34 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
   async function addProduct(name, category) {
     if (loading[name]) return
     setLoading(p => ({ ...p, [name]: true }))
-    await supabase.from('shopping_items').insert({
+    const { error } = await supabase.from('shopping_items').insert({
       family_id: familyId, name, qty: '1', unit: 'u.',
       category, week_start: weekStart, is_checked: false,
       created_by: sessionUserId || null,
     })
-    setAdded(p => ({ ...p, [name]: true }))
+    if (!error) {
+      setAdded(p => ({ ...p, [name]: true }))
+      if (onAdded) onAdded()
+    }
     setLoading(p => ({ ...p, [name]: false }))
-    if (onAdded) onAdded()
   }
 
   async function addCustom(e) {
     e.preventDefault()
-    if (!customText.trim()) return
+    const trimmed = customText.trim()
+    if (!trimmed) return
     setCustomLoading(true)
-    await supabase.from('shopping_items').insert({
-      family_id: familyId, name: customText.trim(), qty: '1', unit: 'u.',
+    const { error } = await supabase.from('shopping_items').insert({
+      family_id: familyId, name: trimmed, qty: '1', unit: 'u.',
       category: 'Altres', week_start: weekStart, is_checked: false,
       created_by: sessionUserId || null,
     })
-    setAdded(p => ({ ...p, [customText.trim()]: true }))
-    setCustomText('')
+    if (!error) {
+      setAdded(p => ({ ...p, [trimmed]: true }))
+      setCustomText('')
+      if (onAdded) onAdded()
+    }
     setCustomLoading(false)
-    if (onAdded) onAdded()
   }
 
   const q = search.toLowerCase()

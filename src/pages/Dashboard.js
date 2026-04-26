@@ -32,21 +32,24 @@ export default function Dashboard({ members, onNavigate }) {
   }, [family])
 
   async function loadData() {
-    const weekStart = getWeekStart()
-    const todayStr  = today.toISOString().split('T')[0]
+    try {
+      const weekStart = getWeekStart()
+      const todayStr  = today.toISOString().split('T')[0]
 
-    const [mealsRes, eventsRes, tasksRes, shopRes] = await Promise.all([
-      supabase.from('meals').select('*, meal_ingredients(*)').eq('family_id', family.id).eq('day_of_week', dayName).eq('week_start', weekStart),
-      supabase.from('events').select('*, family_members(name,avatar_color)').eq('family_id', family.id).gte('event_date', todayStr).order('event_date').limit(5),
-      supabase.from('tasks').select('*, family_members(name,avatar_color)').eq('family_id', family.id).eq('is_done', false).order('is_urgent', { ascending: false }).limit(5),
-      supabase.from('shopping_items').select('id', { count: 'exact' }).eq('family_id', family.id).eq('week_start', weekStart).eq('is_checked', false),
-    ])
+      const [mealsRes, eventsRes, tasksRes, shopRes] = await Promise.all([
+        supabase.from('meals').select('*, meal_ingredients(*)').eq('family_id', family.id).eq('day_of_week', dayName).eq('week_start', weekStart),
+        supabase.from('events').select('*, family_members(name,avatar_color)').eq('family_id', family.id).gte('event_date', todayStr).order('event_date').limit(5),
+        supabase.from('tasks').select('*, family_members(name,avatar_color)').eq('family_id', family.id).eq('is_done', false).order('is_urgent', { ascending: false }).limit(5),
+        supabase.from('shopping_items').select('id', { count: 'exact' }).eq('family_id', family.id).eq('week_start', weekStart).eq('is_checked', false),
+      ])
 
-    setTodayMeals(mealsRes.data || [])
-    setEvents(eventsRes.data || [])
-    setTasks(tasksRes.data || [])
-    setShopCount(shopRes.count || 0)
-    setLoading(false)
+      setTodayMeals(mealsRes.data || [])
+      setEvents(eventsRes.data || [])
+      setTasks(tasksRes.data || [])
+      setShopCount(shopRes.count || 0)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return (

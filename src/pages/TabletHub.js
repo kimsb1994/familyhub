@@ -230,6 +230,15 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved
 function MenuPanel({ familyId, paneId }) {
   const [meals, setMeals] = useState([])
   const [modal, setModal] = useState(null)
+  const [midnightKey, setMidnightKey] = useState(0)
+
+  // Refresh at midnight so the 3-day view never shows stale dates on long-running tablets
+  useEffect(() => {
+    const now = new Date()
+    const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now
+    const t = setTimeout(() => setMidnightKey(k => k + 1), msUntilMidnight)
+    return () => clearTimeout(t)
+  }, [midnightKey])
 
   const threeDays = useMemo(() => [0, 1, 2].map(offset => {
     const d = new Date()
@@ -241,7 +250,7 @@ function MenuPanel({ familyId, paneId }) {
       label:     offset === 0 ? 'Avui' : offset === 1 ? 'Demà' : DAYS_FULL[jsDay === 0 ? 6 : jsDay - 1],
       isToday:   offset === 0,
     }
-  }), [])
+  }), [midnightKey])
 
   const weekStarts = useMemo(() => [...new Set(threeDays.map(d => d.weekStart))], [threeDays])
 
@@ -390,7 +399,7 @@ function ShoppingPanel({ familyId, paneId }) {
             const isDone = item._ai ? !!checked[item.name.toLowerCase()] : item.is_checked
             const toggle = () => {
               if (item._ai) setChecked(p => ({ ...p, [item.name.toLowerCase()]: !p[item.name.toLowerCase()] }))
-              else supabase.from('shopping_items').update({ is_checked: !item.is_checked }).eq('id', item.id).then(load)
+              else supabase.from('shopping_items').update({ is_checked: !item.is_checked }).eq('id', item.id).then(load).catch(console.error)
             }
             return (
               <div key={i} onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 6, cursor: 'pointer', opacity: isDone ? .4 : 1 }}>
@@ -681,7 +690,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                       }
                       {task.family_members
                         ? <div style={{ width: 32, height: 32, borderRadius: '50%', background: task.family_members.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>
-                            {task.family_members.name[0].toUpperCase()}
+                            {(task.family_members?.name?.[0] || '?').toUpperCase()}
                           </div>
                         : <div style={{ width: 32, height: 32, borderRadius: '50%', background: FAMILY_COLOR + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>👨‍👩‍👧</div>
                       }

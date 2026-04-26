@@ -161,9 +161,9 @@ export default function ShoppingPage({ onNavigate }) {
           </div>
           <div className="card" style={{ padding: '3px 0', overflow: 'hidden' }}>
             {items.map((item, i) => {
-              const isDone  = item._isAI ? !!checkedAI[item.name.toLowerCase()] : item.is_checked
+              const isDone  = item._isAI ? !!checkedAI[item.name?.toLowerCase()] : item.is_checked
               const toggle  = () => {
-                if (item._isAI) setCheckedAI(p => ({ ...p, [item.name.toLowerCase()]: !p[item.name.toLowerCase()] }))
+                if (item._isAI) setCheckedAI(p => ({ ...p, [item.name?.toLowerCase()]: !p[item.name?.toLowerCase()] }))
                 else toggleManual(item)
               }
               return (

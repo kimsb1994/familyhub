@@ -47,11 +47,15 @@ function MobileStatusBar({ isOnline }) {
     if (!navigator.getBattery) return
     let b = null
     const upd = () => b && setBattery({ level: b.level, charging: b.charging })
-    navigator.getBattery().then(bat => {
-      b = bat; upd()
-      bat.addEventListener('levelchange', upd)
-      bat.addEventListener('chargingchange', upd)
-    })
+    const init = async () => {
+      try {
+        b = await navigator.getBattery()
+        upd()
+        b.addEventListener('levelchange', upd)
+        b.addEventListener('chargingchange', upd)
+      } catch {}
+    }
+    init()
     return () => { if (b) { b.removeEventListener('levelchange', upd); b.removeEventListener('chargingchange', upd) } }
   }, [])
 

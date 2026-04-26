@@ -5,6 +5,56 @@ import { supabase } from './lib/supabase'
 import { mergeIngredients, getWeekStart } from './lib/constants'
 import { usePWA } from './hooks/usePWA'
 
+// ── Google Calendar OAuth callback ───────────────────────────────────────────
+// Cuando el popup de Google redirige de vuelta a la app con ?state=gcal_connect
+// esta pantalla intercambia el código y notifica al padre antes de cerrarse.
+function GCalCallback() {
+  const [status, setStatus] = useState('loading')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code   = params.get('code')
+    if (!code) { setStatus('error'); return }
+
+    const run = async () => {
+      // Esperar a que la sesión esté disponible (está en localStorage)
+      await supabase.auth.getSession()
+      const { error } = await supabase.functions.invoke('gcal-exchange', {
+        body: { code, redirect_uri: window.location.origin },
+      })
+      if (error) { setStatus('error'); return }
+
+      if (window.opener) {
+        // Modo popup: notificar al padre y cerrar
+        window.opener.postMessage('gcal_connected', window.location.origin)
+        window.close()
+      } else {
+        // Modo misma pestaña: limpiar URL y continuar normalmente
+        window.history.replaceState({}, '', window.location.pathname)
+        setStatus('done')
+        setTimeout(() => window.location.reload(), 500)
+      }
+    }
+    run()
+  }, [])
+
+  const msgs = {
+    loading: 'Connectant Google Calendar…',
+    error:   'Error al connectar. Tanca aquesta finestra i torna-ho a intentar.',
+    done:    'Connectat! Tornant a l\'app…',
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:16, fontFamily:'DM Sans, sans-serif' }}>
+      <div style={{ fontSize:40 }}>📅</div>
+      <div style={{ fontSize:15, color: status === 'error' ? '#F43F5E' : 'var(--text)' }}>{msgs[status]}</div>
+      {status === 'loading' && (
+        <div style={{ width:24, height:24, borderRadius:'50%', border:'3px solid #FF6B3530', borderTopColor:'#FF6B35', animation:'spin 1s linear infinite' }} />
+      )}
+    </div>
+  )
+}
+
 import AuthPage     from './pages/AuthPage'
 import Dashboard    from './pages/Dashboard'
 import CalendarPage from './pages/CalendarPage'
@@ -226,5 +276,10 @@ function AppInner() {
 }
 
 export default function App() {
+  // Interceptar callback OAuth de Google Calendar antes de renderizar la app
+  const sp = new URLSearchParams(window.location.search)
+  if (sp.get('state') === 'gcal_connect' && sp.get('code')) {
+    return <GCalCallback />
+  }
   return <LanguageProvider><AuthProvider><AppInner /></AuthProvider></LanguageProvider>
 }

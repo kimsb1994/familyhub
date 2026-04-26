@@ -221,7 +221,7 @@ const QUICK_PRODUCTS = {
   },
 }
 
-export default function QuickAddModal({ familyId, weekStart, sessionUserId, existingNames, onAdded, onClose }) {
+export default function QuickAddModal({ familyId, weekStart, sessionUserId, existingNames, onAdded, onClose, onAddIngredient }) {
   const { t, lang } = useTranslation()
   const [search,     setSearch]     = useState('')
   const [added,      setAdded]      = useState({})
@@ -229,12 +229,18 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
   const [customText, setCustomText] = useState('')
   const [customLoading, setCustomLoading] = useState(false)
 
+  const ingredientMode = !!onAddIngredient
   const products  = QUICK_PRODUCTS[lang] || QUICK_PRODUCTS.ca
   const catLabels = CAT_LABELS[lang]     || CAT_LABELS.ca
   const existingSet = new Set((existingNames || []).map(n => n.toLowerCase()))
 
   async function addProduct(name, category) {
     if (loading[name]) return
+    if (ingredientMode) {
+      onAddIngredient(name, category)
+      setAdded(p => ({ ...p, [name]: true }))
+      return
+    }
     setLoading(p => ({ ...p, [name]: true }))
     const { error } = await supabase.from('shopping_items').insert({
       family_id: familyId, name, qty: '1', unit: 'u.',
@@ -252,6 +258,12 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
     e.preventDefault()
     const trimmed = customText.trim()
     if (!trimmed) return
+    if (ingredientMode) {
+      onAddIngredient(trimmed, 'Altres')
+      setAdded(p => ({ ...p, [trimmed]: true }))
+      setCustomText('')
+      return
+    }
     setCustomLoading(true)
     const { error } = await supabase.from('shopping_items').insert({
       family_id: familyId, name: trimmed, qty: '1', unit: 'u.',
@@ -285,7 +297,10 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
         <div style={{ padding: '18px 20px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, margin: 0 }}>
-              {t('shopping.modal_title')} 🛒 <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>{t('shopping.modal_accent')}</span>
+              {ingredientMode
+                ? <>🥦 Ingredients <span style={{ color: 'var(--teal)', fontStyle: 'italic' }}>del plat</span></>
+                : <>{t('shopping.modal_title')} 🛒 <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>{t('shopping.modal_accent')}</span></>
+              }
             </h3>
             <button className="btn-icon" onClick={onClose}>✕</button>
           </div>

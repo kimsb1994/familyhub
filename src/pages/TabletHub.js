@@ -6,6 +6,7 @@ import { getWeekStart, mergeIngredients, groupBy, catColor, DAYS_FULL, DAYS_SHOR
 import { Avatar, Spinner } from '../components/ui'
 import { useKioskMode } from '../hooks/useKioskMode'
 import QuickAddModal from '../components/QuickAddModal'
+import ProfilePage from './ProfilePage'
 
 const EVENT_COLORS = ['#FF6B35','#00C9A7','#FFD166','#8B5CF6','#06B6D4','#F43F5E','#84CC16']
 
@@ -1022,6 +1023,16 @@ function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
   )
 }
 
+// ── Settings panel ─────────────────────────────────────────────────────────────
+function SettingsPanel({ members }) {
+  const { reload } = useAuth()
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18 }}>
+      <ProfilePage members={members} onMembersChange={reload} />
+    </div>
+  )
+}
+
 // ── Pane navigation ────────────────────────────────────────────────────────────
 const PANE_SECTIONS = [
   { id: 'calendar', icon: '📅', label: 'Calendari' },
@@ -1029,6 +1040,7 @@ const PANE_SECTIONS = [
   { id: 'shopping', icon: '🛒', label: 'Compra'    },
   { id: 'tasks',    icon: '✅', label: 'Tasques'   },
   { id: 'events',   icon: '📋', label: 'Events'    },
+  { id: 'settings', icon: '⚙️', label: 'Ajustos'  },
 ]
 
 function PaneNav({ current, onChange, side }) {

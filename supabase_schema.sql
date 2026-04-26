@@ -26,6 +26,7 @@ create table public.family_members (
 create table public.meals (
   id uuid primary key default gen_random_uuid(),
   family_id uuid references public.families(id) on delete cascade,
+  member_id uuid references public.family_members(id) on delete set null, -- null = family meal
   name text not null,
   emoji text default '🍽️',
   time_minutes text,

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { DAYS_SHORT, DAYS_FULL, MEAL_TYPES, CATEGORIES, getWeekStart, catColor } from '../lib/constants'
 import { PageHeader, IngredientList, Spinner } from '../components/ui'
+import QuickAddModal from '../components/QuickAddModal'
 import { useTranslation } from '../lib/i18n'
 
 // ── Ingredient form ───────────────────────────────────────────────────────────
@@ -54,7 +55,7 @@ function IngredientForm({ ingredients, setIngredients }) {
 }
 
 // ── Dish picker modal ─────────────────────────────────────────────────────────
-function DishPickerModal({ day, mealType, familyId, weekStart, onSaved, onClose }) {
+function DishPickerModal({ day, mealType, familyId, weekStart, memberId, onSaved, onClose }) {
   const { session } = useAuth()
   const { t } = useTranslation()
   const [dishes,   setDishes]   = useState([])
@@ -81,6 +82,7 @@ function DishPickerModal({ day, mealType, familyId, weekStart, onSaved, onClose 
         family_id: familyId, name: dish.name, emoji: dish.emoji,
         time_minutes: dish.time_minutes, difficulty: dish.difficulty,
         meal_type: mealType, day_of_week: day, week_start: weekStart,
+        member_id: memberId || null,
         created_by: session.user.id,
       }).select().single()
       if (error) throw error
@@ -102,6 +104,7 @@ function DishPickerModal({ day, mealType, familyId, weekStart, onSaved, onClose 
       <MealModal
         day={day} mealType={mealType}
         familyId={familyId} weekStart={weekStart}
+        memberId={memberId}
         saveToLibrary
         onSaved={onSaved} onDeleted={onSaved} onClose={onClose}
       />
@@ -183,7 +186,7 @@ function DishPickerModal({ day, mealType, familyId, weekStart, onSaved, onClose 
 }
 
 // ── Meal modal (create / edit) ────────────────────────────────────────────────
-function MealModal({ day, mealType, existing, familyId, weekStart, saveToLibrary, onSaved, onDeleted, onClose }) {
+function MealModal({ day, mealType, existing, familyId, weekStart, memberId, saveToLibrary, onSaved, onDeleted, onClose }) {
   const { session } = useAuth()
   const { t } = useTranslation()
   const [name,  setName]  = useState(existing?.name  || '')
@@ -195,9 +198,10 @@ function MealModal({ day, mealType, existing, familyId, weekStart, saveToLibrary
       ? existing.meal_ingredients.map((i, idx) => ({ ...i, _id: idx }))
       : []
   )
-  const [saving,   setSaving]   = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [error,    setError]    = useState('')
+  const [saving,      setSaving]      = useState(false)
+  const [deleting,    setDeleting]    = useState(false)
+  const [error,       setError]       = useState('')
+  const [showIngPicker, setShowIngPicker] = useState(false)
 
   async function save() {
     if (!name.trim()) return
@@ -211,6 +215,7 @@ function MealModal({ day, mealType, existing, familyId, weekStart, saveToLibrary
         const { data, error: mealErr } = await supabase.from('meals').insert({
           family_id: familyId, name: name.trim(), emoji, time_minutes: time, difficulty: diff,
           meal_type: mealType, day_of_week: day, week_start: weekStart,
+          member_id: memberId || null,
           created_by: session.user.id,
         }).select().single()
         if (mealErr) throw mealErr
@@ -283,6 +288,25 @@ function MealModal({ day, mealType, existing, familyId, weekStart, saveToLibrary
 
         <IngredientForm ingredients={ings} setIngredients={setIngs} />
 
+        <button
+          className="btn-ghost"
+          type="button"
+          onClick={() => setShowIngPicker(true)}
+          style={{ width: '100%', justifyContent: 'center', marginTop: 8, fontSize: 13 }}
+        >
+          🛒 Escull ingredients del catàleg
+        </button>
+
+        {showIngPicker && (
+          <QuickAddModal
+            existingNames={ings.map(i => i.name)}
+            onAddIngredient={(name, category) =>
+              setIngs(p => [...p, { name, qty: '1', unit: 'u.', category, _id: Date.now() }])
+            }
+            onClose={() => setShowIngPicker(false)}
+          />
+        )}
+
         {error && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 8 }}>{error}</div>}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
@@ -340,25 +364,32 @@ function MealDetail({ meal, day, onEdit, onClose }) {
 
 // ── Main Menu Page ────────────────────────────────────────────────────────────
 export default function MenuPage() {
-  const { family } = useAuth()
+  const { family, members } = useAuth()
   const { t } = useTranslation()
-  const [meals,     setMeals]     = useState([])
-  const [activeDay, setActiveDay] = useState(DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1])
-  const [modal,     setModal]     = useState(null)
-  const [loading,   setLoading]   = useState(true)
+  const [meals,          setMeals]          = useState([])
+  const [activeDay,      setActiveDay]      = useState(DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1])
+  const [modal,          setModal]          = useState(null)
+  const [loading,        setLoading]        = useState(true)
+  const [selectedMember, setSelectedMember] = useState(null) // null = menú familiar
 
   const weekStart = getWeekStart()
 
   const load = useCallback(async () => {
     if (!family) return
-    const { data } = await supabase
+    let query = supabase
       .from('meals')
       .select('*, meal_ingredients(*)')
       .eq('family_id', family.id)
       .eq('week_start', weekStart)
+    if (selectedMember) {
+      query = query.eq('member_id', selectedMember.id)
+    } else {
+      query = query.is('member_id', null)
+    }
+    const { data } = await query
     setMeals(data || [])
     setLoading(false)
-  }, [family, weekStart])
+  }, [family, weekStart, selectedMember])
 
   useEffect(() => {
     load()
@@ -381,6 +412,37 @@ export default function MenuPage() {
   return (
     <div style={{ padding: '20px 16px' }} className="fu">
       <PageHeader title={t('menu.title')} accent={t('menu.accent')} subtitle={`${mealsCount} plats`} />
+
+      {/* Member selector */}
+      {members.length > 1 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
+          <button
+            onClick={() => setSelectedMember(null)}
+            style={{
+              flexShrink: 0, padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              background: !selectedMember ? 'var(--accent)' : 'var(--card)',
+              color: !selectedMember ? '#fff' : 'var(--muted)',
+              fontFamily: 'inherit', fontSize: 12, fontWeight: 700, transition: 'all .15s',
+            }}
+          >
+            👨‍👩‍👧 Família
+          </button>
+          {members.map(m => (
+            <button
+              key={m.id}
+              onClick={() => setSelectedMember(m)}
+              style={{
+                flexShrink: 0, padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                background: selectedMember?.id === m.id ? m.avatar_color : 'var(--card)',
+                color: selectedMember?.id === m.id ? '#fff' : 'var(--muted)',
+                fontFamily: 'inherit', fontSize: 12, fontWeight: 700, transition: 'all .15s',
+              }}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Day pills */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 4 }}>
@@ -474,6 +536,7 @@ export default function MenuPage() {
         <DishPickerModal
           day={modal.day} mealType={modal.mealType}
           familyId={family.id} weekStart={weekStart}
+          memberId={selectedMember?.id || null}
           onSaved={load} onClose={() => setModal(null)}
         />
       )}
@@ -482,6 +545,7 @@ export default function MenuPage() {
           day={modal.day} mealType={modal.mealType}
           existing={modal.data}
           familyId={family.id} weekStart={weekStart}
+          memberId={selectedMember?.id || null}
           onSaved={load} onDeleted={load} onClose={() => setModal(null)}
         />
       )}

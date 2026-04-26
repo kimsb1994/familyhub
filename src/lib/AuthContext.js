@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [session,  setSession]  = useState(undefined) // undefined = loading
   const [member,   setMember]   = useState(null)
   const [family,   setFamily]   = useState(null)
+  const [members,  setMembers]  = useState([])
 
   useEffect(() => {
     // Recover persisted session and refresh access token if expired
@@ -42,10 +43,16 @@ export function AuthProvider({ children }) {
     if (data) {
       setMember(data)
       setFamily(data.families)
+      const { data: allMembers } = await supabase
+        .from('family_members')
+        .select('*')
+        .eq('family_id', data.families.id)
+        .order('created_at')
+      setMembers(allMembers || [])
     }
   }
 
-  const value = { session, member, family, loading: session === undefined, reload: () => loadMemberAndFamily(session?.user?.id) }
+  const value = { session, member, members, family, loading: session === undefined, reload: () => loadMemberAndFamily(session?.user?.id) }
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

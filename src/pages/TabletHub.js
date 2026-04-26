@@ -217,12 +217,14 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, mem
 // ── Tablet dish picker modal ───────────────────────────────────────────────────
 function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members, onSaved, onClose }) {
   const { session } = useAuth()
-  const [dishes,   setDishes]   = useState([])
-  const [search,   setSearch]   = useState('')
-  const [loading,  setLoading]  = useState(true)
-  const [saving,   setSaving]   = useState(null)
-  const [creating, setCreating] = useState(false)
-  const [memberId, setMemberId] = useState(null)
+  const [dishes,       setDishes]       = useState([])
+  const [search,       setSearch]       = useState('')
+  const [loading,      setLoading]      = useState(true)
+  const [saving,       setSaving]       = useState(null)
+  const [creating,     setCreating]     = useState(false)
+  const [memberId,     setMemberId]     = useState(null)
+  const [selectedDish, setSelectedDish] = useState(null)
+  const [ingChecked,   setIngChecked]   = useState({})
 
   useEffect(() => {
     supabase.from('dishes').select('*, dish_ingredients(*)')
@@ -235,7 +237,18 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members
     ? dishes.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))
     : dishes
 
-  async function selectDish(dish) {
+  function pickDish(dish) {
+    if (dish.dish_ingredients?.length > 0) {
+      const checked = {}
+      dish.dish_ingredients.forEach((_, i) => { checked[i] = true })
+      setIngChecked(checked)
+      setSelectedDish(dish)
+    } else {
+      selectDish(dish, [])
+    }
+  }
+
+  async function selectDish(dish, shoppingIngs) {
     setSaving(dish.id)
     try {
       const { data, error } = await supabase.from('meals').insert({
@@ -253,10 +266,85 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members
           }))
         )
       }
+      if (shoppingIngs?.length > 0) {
+        await supabase.from('shopping_items').insert(
+          shoppingIngs.map(({ name, qty, unit, category }) => ({
+            family_id: familyId, week_start: weekStart, name, qty: qty || '1', unit: unit || '', category, is_checked: false,
+          }))
+        )
+      }
       onSaved(); onClose()
     } catch {
       setSaving(null)
     }
+  }
+
+  if (selectedDish) {
+    const numChecked = Object.values(ingChecked).filter(Boolean).length
+    return (
+      <div onClick={() => setSelectedDish(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 480, maxWidth: '90vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column' }}>
+
+          {/* Dish header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexShrink: 0 }}>
+            <span style={{ fontSize: 36 }}>{selectedDish.emoji || '🍽️'}</span>
+            <div>
+              <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{selectedDish.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Selecciona els ingredients per afegir a la compra</div>
+            </div>
+          </div>
+
+          {/* Select all / none */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexShrink: 0 }}>
+            <button className="btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
+              onClick={() => { const a = {}; selectedDish.dish_ingredients.forEach((_, i) => { a[i] = true }); setIngChecked(a) }}>
+              Tot
+            </button>
+            <button className="btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
+              onClick={() => { const a = {}; selectedDish.dish_ingredients.forEach((_, i) => { a[i] = false }); setIngChecked(a) }}>
+              Cap
+            </button>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>{numChecked} seleccionats</span>
+          </div>
+
+          {/* Ingredient checklist */}
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 16 }}>
+            {selectedDish.dish_ingredients.map((ing, i) => {
+              const c = catColor(ing.category)
+              const checked = !!ingChecked[i]
+              return (
+                <div
+                  key={i}
+                  onClick={() => setIngChecked(p => ({ ...p, [i]: !p[i] }))}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: checked ? c + '15' : 'var(--surface)', border: `1.5px solid ${checked ? c + '70' : 'var(--border)'}`, cursor: 'pointer', transition: 'all .12s' }}
+                >
+                  <div style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${checked ? c : 'var(--border)'}`, background: checked ? c : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .12s' }}>
+                    {checked && <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>✓</span>}
+                  </div>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{ing.name}</span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{ing.qty} {ing.unit}</span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Footer */}
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button
+              className="btn-primary"
+              onClick={() => selectDish(selectedDish, selectedDish.dish_ingredients.filter((_, i) => ingChecked[i]))}
+              disabled={!!saving}
+              style={{ flex: 1, justifyContent: 'center' }}
+            >
+              {saving ? <Spinner size={16} color="#fff" /> : numChecked > 0 ? `🛒 Afegir al menú i a la compra (${numChecked})` : '+ Afegir al menú'}
+            </button>
+            <button className="btn-ghost" onClick={() => setSelectedDish(null)}>← Tornar</button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (creating) {
@@ -320,7 +408,7 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members
             filtered.map(dish => (
               <div
                 key={dish.id}
-                onClick={() => !saving && selectDish(dish)}
+                onClick={() => !saving && pickDish(dish)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   padding: '12px 14px', borderRadius: 12,
@@ -554,33 +642,40 @@ function ShoppingPanel({ familyId, paneId }) {
         🛒 Afegir productes
       </button>
       {total > 0 && (
-        <div style={{ marginBottom: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
             <span>{total - done} pendents</span>
             <span style={{ color: 'var(--teal)', fontWeight: 700 }}>{done}/{total}</span>
           </div>
-          <div style={{ height: 3, background: 'var(--border)', borderRadius: 2 }}>
+          <div style={{ height: 4, background: 'var(--border)', borderRadius: 2 }}>
             <div style={{ height: '100%', background: 'linear-gradient(90deg,var(--teal),var(--accent))', width: `${total ? (done/total)*100 : 0}%`, borderRadius: 2, transition: 'width .3s' }} />
           </div>
         </div>
       )}
-      {total === 0 && <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'center', padding: '12px 0' }}>Cap producte</div>}
+      {total === 0 && <div style={{ fontSize: 13, color: 'var(--dim)', textAlign: 'center', padding: '16px 0' }}>Cap producte</div>}
       {Object.entries(grouped).map(([cat, items]) => (
-        <div key={cat} style={{ marginBottom: 6 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: catColor(cat), textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 3 }}>{cat}</div>
+        <div key={cat} style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: catColor(cat), textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 4 }}>{cat}</div>
           {items.map((item, i) => {
             const isDone = item._ai ? !!checked[item.name.toLowerCase()] : item.is_checked
             const toggle = () => {
               if (item._ai) setChecked(p => ({ ...p, [item.name.toLowerCase()]: !p[item.name.toLowerCase()] }))
               else supabase.from('shopping_items').update({ is_checked: !item.is_checked }).eq('id', item.id).then(load).catch(console.error)
             }
+            const del = e => {
+              e.stopPropagation()
+              supabase.from('shopping_items').delete().eq('id', item.id).then(load)
+            }
             return (
-              <div key={i} onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 6px', borderRadius: 6, cursor: 'pointer', opacity: isDone ? .4 : 1 }}>
-                <div style={{ width: 13, height: 13, borderRadius: 4, border: `1.5px solid ${isDone ? 'var(--teal)' : 'var(--border)'}`, background: isDone ? 'var(--teal)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {isDone && <span style={{ color: '#fff', fontSize: 8, fontWeight: 700 }}>✓</span>}
+              <div key={i} onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', opacity: isDone ? .4 : 1 }}>
+                <div style={{ width: 17, height: 17, borderRadius: 5, border: `2px solid ${isDone ? 'var(--teal)' : 'var(--border)'}`, background: isDone ? 'var(--teal)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {isDone && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
                 </div>
-                <span style={{ flex: 1, fontSize: 11, textDecoration: isDone ? 'line-through' : 'none' }}>{item.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--muted)' }}>{item.qty} {item.unit}</span>
+                <span style={{ flex: 1, fontSize: 13, textDecoration: isDone ? 'line-through' : 'none' }}>{item.name}</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>{item.qty} {item.unit}</span>
+                {!item._ai && (
+                  <button onClick={del} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, padding: '0 2px', lineHeight: 1, opacity: .5, flexShrink: 0 }}>✕</button>
+                )}
               </div>
             )
           })}

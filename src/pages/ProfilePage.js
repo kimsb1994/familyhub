@@ -362,15 +362,27 @@ function InviteModal({ family, onClose }) {
   )
 }
 
+const MEMBER_ROLES = ['Pare', 'Mare', 'Fill/a', 'Avi', 'Àvia', 'Altre']
+
 function EditMemberModal({ member, onSaved, onClose }) {
   const { t } = useTranslation()
-  const [name,   setName]   = useState(member.name)
-  const [color,  setColor]  = useState(member.avatar_color || MEMBER_COLORS[0])
-  const [saving, setSaving] = useState(false)
+  const [name,     setName]     = useState(member.name)
+  const [color,    setColor]    = useState(member.avatar_color || MEMBER_COLORS[0])
+  const [role,     setRole]     = useState(member.role || '')
+  const [saving,   setSaving]   = useState(false)
+  const [delPhase, setDelPhase] = useState(false)
+
+  const isGuest = !member.user_id
 
   async function save() {
     setSaving(true)
-    await supabase.from('family_members').update({ name: name.trim(), avatar_color: color }).eq('id', member.id)
+    await supabase.from('family_members').update({ name: name.trim(), avatar_color: color, ...(isGuest ? { role } : {}) }).eq('id', member.id)
+    onSaved(); onClose()
+  }
+
+  async function del() {
+    setSaving(true)
+    await supabase.from('family_members').delete().eq('id', member.id)
     onSaved(); onClose()
   }
 
@@ -378,20 +390,121 @@ function EditMemberModal({ member, onSaved, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-drag" />
-        <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 16 }}>{t('profile.edit_profile')}</h3>
+
+        {/* Preview avatar */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, color: '#fff' }}>
+            {name ? name[0].toUpperCase() : '?'}
+          </div>
+        </div>
+
+        <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 16, textAlign: 'center' }}>{t('profile.edit_profile')}</h3>
+
         <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>{t('profile.name')}</label>
         <input className="inp" value={name} onChange={e => setName(e.target.value)} style={{ marginBottom: 14 }} />
+
+        {isGuest && (
+          <>
+            <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Rol</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+              {MEMBER_ROLES.map(r => (
+                <button key={r} onClick={() => setRole(r)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: role === r ? 700 : 400, border: 'none', cursor: 'pointer', background: role === r ? 'var(--accent)' : 'var(--surface)', color: role === r ? '#fff' : 'var(--text)' }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>{t('profile.color')}</label>
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {MEMBER_COLORS.map(c => (
             <div key={c} onClick={() => setColor(c)} style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c ? '3px solid white' : '3px solid transparent', transition: 'border .15s' }} />
           ))}
         </div>
+
+        {delPhase ? (
+          <div style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--red-dim)', border: '1px solid #FF446630', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', marginBottom: 6 }}>Eliminar {member.name}?</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>Això eliminarà el membre i totes les seves dades associades.</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={del} disabled={saving} style={{ flex: 1, padding: '9px', borderRadius: 8, background: 'var(--red)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Sí, eliminar
+              </button>
+              <button onClick={() => setDelPhase(false)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
+              {saving ? t('common.saving') : `💾 ${t('common.save')}`}
+            </button>
+            {isGuest && (
+              <button onClick={() => setDelPhase(true)} style={{ padding: '9px 14px', borderRadius: 10, background: 'var(--red-dim)', border: '1px solid #FF446630', color: 'var(--red)', cursor: 'pointer', fontSize: 16 }}>🗑</button>
+            )}
+            <button className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AddMemberModal({ family, onSaved, onClose }) {
+  const [name,   setName]   = useState('')
+  const [color,  setColor]  = useState(MEMBER_COLORS[2])
+  const [role,   setRole]   = useState('Fill/a')
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    if (!name.trim()) return
+    setSaving(true)
+    await supabase.from('family_members').insert({
+      family_id: family.id, name: name.trim(), avatar_color: color, role, user_id: null,
+    })
+    onSaved(); onClose()
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-drag" />
+
+        {/* Preview */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 700, color: '#fff', transition: 'background .2s' }}>
+            {name ? name[0].toUpperCase() : '👤'}
+          </div>
+        </div>
+
+        <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 16, textAlign: 'center' }}>Nou membre</h3>
+
+        <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 5 }}>Nom *</label>
+        <input className="inp" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Marc, Laia..." style={{ marginBottom: 14 }} autoFocus />
+
+        <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Rol</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {MEMBER_ROLES.map(r => (
+            <button key={r} onClick={() => setRole(r)} style={{ padding: '5px 12px', borderRadius: 20, fontSize: 13, fontWeight: role === r ? 700 : 400, border: 'none', cursor: 'pointer', background: role === r ? 'var(--accent)' : 'var(--surface)', color: role === r ? '#fff' : 'var(--text)' }}>
+              {r}
+            </button>
+          ))}
+        </div>
+
+        <label style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Color</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 22 }}>
+          {MEMBER_COLORS.map(c => (
+            <div key={c} onClick={() => setColor(c)} style={{ width: 30, height: 30, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c ? '3px solid white' : '3px solid transparent', boxShadow: color === c ? `0 0 0 2px ${c}` : 'none', transition: 'all .15s' }} />
+          ))}
+        </div>
+
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? t('common.saving') : `💾 ${t('common.save')}`}
+            {saving ? 'Guardant...' : '+ Afegir membre'}
           </button>
-          <button className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
+          <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
         </div>
       </div>
     </div>
@@ -402,10 +515,11 @@ function EditMemberModal({ member, onSaved, onClose }) {
 export default function ProfilePage({ members, onMembersChange }) {
   const { family, member, reload } = useAuth()
   const { t } = useTranslation()
-  const [showInvite,  setShowInvite]  = useState(false)
-  const [editMember,  setEditMember]  = useState(null)
-  const [signingOut,  setSigningOut]  = useState(false)
-  const [activeSheet, setActiveSheet] = useState(null)
+  const [showInvite,    setShowInvite]    = useState(false)
+  const [editMember,    setEditMember]    = useState(null)
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [signingOut,    setSigningOut]    = useState(false)
+  const [activeSheet,   setActiveSheet]   = useState(null)
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -437,10 +551,10 @@ export default function ProfilePage({ members, onMembersChange }) {
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 10 }}>
         {members.map(m => (
-          <div key={m.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, cursor: m.id === member?.id ? 'pointer' : 'default' }}
-            onClick={() => m.id === member?.id && setEditMember(m)}>
+          <div key={m.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
+            onClick={() => setEditMember(m)}>
             <Avatar member={m} size={46} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{m.name}</div>
@@ -450,11 +564,22 @@ export default function ProfilePage({ members, onMembersChange }) {
               {m.id === member?.id && (
                 <span className="tag" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>{t('profile.me')}</span>
               )}
-              <span className="tag" style={{ background: (m.avatar_color || 'var(--accent)') + '20', color: m.avatar_color }}>{m.role}</span>
+              {!m.user_id && (
+                <span className="tag" style={{ background: 'var(--surface)', color: 'var(--muted)' }}>👤 Sense compte</span>
+              )}
+              <span style={{ fontSize: 14, color: 'var(--muted)', opacity: .5 }}>✎</span>
             </div>
           </div>
         ))}
       </div>
+
+      <button
+        className="btn-ghost"
+        onClick={() => setShowAddMember(true)}
+        style={{ width: '100%', justifyContent: 'center', marginBottom: 24, borderStyle: 'dashed' }}
+      >
+        + Afegir membre
+      </button>
 
       <div style={{ fontSize: 10, color: 'var(--dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 10 }}>{t('profile.settings')}</div>
       {SETTINGS.map(s => (
@@ -475,8 +600,9 @@ export default function ProfilePage({ members, onMembersChange }) {
       </button>
 
       {/* Modals */}
-      {showInvite   && <InviteModal family={family} onClose={() => setShowInvite(false)} />}
-      {editMember   && <EditMemberModal member={editMember} onSaved={() => { reload(); onMembersChange() }} onClose={() => setEditMember(null)} />}
+      {showInvite    && <InviteModal    family={family} onClose={() => setShowInvite(false)} />}
+      {showAddMember && <AddMemberModal family={family} onSaved={() => { reload(); onMembersChange?.() }} onClose={() => setShowAddMember(false)} />}
+      {editMember    && <EditMemberModal member={editMember} onSaved={() => { reload(); onMembersChange?.() }} onClose={() => setEditMember(null)} />}
       {activeSheet === 'notif'    && <NotificationsSheet onClose={() => setActiveSheet(null)} />}
       {activeSheet === 'appear'   && <AppearanceSheet    onClose={() => setActiveSheet(null)} />}
       {activeSheet === 'devices'  && <DevicesSheet       onClose={() => setActiveSheet(null)} />}

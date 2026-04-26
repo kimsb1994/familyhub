@@ -287,7 +287,7 @@ export default function QuickAddModal({ familyId, weekStart, sessionUserId, exis
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 500, padding: 16, overflowY: 'auto' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 1100, padding: 16, overflowY: 'auto' }}
     >
       <div
         onClick={e => e.stopPropagation()}

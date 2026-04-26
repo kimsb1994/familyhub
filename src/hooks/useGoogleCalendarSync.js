@@ -86,7 +86,7 @@ export function useGoogleCalendarSync() {
     }
     init()
     return () => stopPolling()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // solo al montar — intencionalmente sin deps
 
   // ── Escuchar mensaje del popup OAuth ─────────────────────────────────────────
   useEffect(() => {

@@ -248,7 +248,7 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members
     }
   }
 
-  async function selectDish(dish, shoppingIngs) {
+  async function selectDish(dish, selectedIngs) {
     setSaving(dish.id)
     try {
       const { data, error } = await supabase.from('meals').insert({
@@ -259,17 +259,10 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members
         created_by: session?.user?.id,
       }).select().single()
       if (error) throw error
-      if (dish.dish_ingredients?.length > 0) {
+      if (selectedIngs?.length > 0) {
         await supabase.from('meal_ingredients').insert(
-          dish.dish_ingredients.map(({ name, qty, unit, category }) => ({
+          selectedIngs.map(({ name, qty, unit, category }) => ({
             meal_id: data.id, name, qty, unit, category,
-          }))
-        )
-      }
-      if (shoppingIngs?.length > 0) {
-        await supabase.from('shopping_items').insert(
-          shoppingIngs.map(({ name, qty, unit, category }) => ({
-            family_id: familyId, week_start: weekStart, name, qty: qty || '1', unit: unit || '', category, is_checked: false,
           }))
         )
       }
@@ -290,7 +283,7 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members
             <span style={{ fontSize: 36 }}>{selectedDish.emoji || '🍽️'}</span>
             <div>
               <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{selectedDish.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Selecciona els ingredients per afegir a la compra</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>Quins ingredients necessites? Apareixeran a la llista de compra.</div>
             </div>
           </div>
 

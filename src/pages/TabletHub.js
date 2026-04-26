@@ -428,18 +428,43 @@ function ShoppingPanel({ familyId, paneId }) {
 }
 
 // ── Events panel ───────────────────────────────────────────────────────────────
-function EventsPanel({ familyId, members, paneId }) {
-  const [events, setEvents] = useState([])
+function EventsPanel({ familyId, members, sessionUserId, paneId }) {
+  const [events,     setEvents]     = useState([])
+  const [modal,      setModal]      = useState(null)
+  const [midnightKey, setMidnightKey] = useState(0)
+
+  useEffect(() => {
+    const now = new Date()
+    const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now
+    const t = setTimeout(() => setMidnightKey(k => k + 1), msUntilMidnight)
+    return () => clearTimeout(t)
+  }, [midnightKey])
+
+  const next7Days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() + i)
+    const y   = d.getFullYear()
+    const mo  = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return {
+      dateStr: `${y}-${mo}-${day}`,
+      label:   i === 0 ? 'Avui' : i === 1 ? 'Demà' : d.toLocaleDateString('ca-ES', { weekday: 'short' }),
+      isToday: i === 0,
+    }
+  }), [midnightKey])
+
+  const todayStr = next7Days[0].dateStr
+  const in7Days  = next7Days[6].dateStr
 
   const load = useCallback(async () => {
-    const today = new Date().toISOString().split('T')[0]
     const { data } = await supabase.from('events')
       .select('*, family_members(name,avatar_color)')
       .eq('family_id', familyId)
-      .gte('event_date', today)
-      .order('event_date').order('event_time').limit(6)
+      .gte('event_date', todayStr)
+      .lte('event_date', in7Days)
+      .order('event_date').order('event_time', { nullsFirst: false })
     setEvents(data || [])
-  }, [familyId])
+  }, [familyId, todayStr, in7Days])
 
   useEffect(() => {
     load()
@@ -449,29 +474,86 @@ function EventsPanel({ familyId, members, paneId }) {
     return () => supabase.removeChannel(ch)
   }, [load, familyId])
 
+  const byDay = {}
+  next7Days.forEach(({ dateStr }) => { byDay[dateStr] = [] })
+  events.forEach(e => { if (byDay[e.event_date]) byDay[e.event_date].push(e) })
+
   return (
-    <Panel title="Pròxims" accent="events" icon="📅" style={{ height: '100%' }}>
-      {events.length === 0 && <div style={{ fontSize: 12, color: 'var(--dim)', textAlign: 'center', padding: '12px 0' }}>Cap event proper</div>}
-      {events.map(e => {
-        const d = new Date(e.event_date + 'T12:00')
-        const day = d.toLocaleDateString('ca-ES', { weekday: 'short', day: 'numeric' })
-        const dotColor = e.family_members?.avatar_color || e.color || 'var(--accent)'
-        return (
-          <div key={e.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)', marginBottom: 4 }}>
-            <div style={{ width: 34, textAlign: 'center', background: dotColor + '20', borderRadius: 6, padding: '3px 2px', flexShrink: 0 }}>
-              <div style={{ fontSize: 8, color: dotColor, fontWeight: 700, textTransform: 'uppercase' }}>{day.split(' ')[0]}</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: dotColor, fontFamily: 'Fraunces, serif', lineHeight: 1 }}>{day.split(' ')[1]}</div>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.title}</div>
-              {e.event_time && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{e.event_time.slice(0,5)}</div>}
-            </div>
-            {e.family_members && <Avatar member={e.family_members} size={20} />}
-            {e.is_urgent && <span style={{ fontSize: 12 }}>⚡</span>}
-          </div>
-        )
-      })}
-    </Panel>
+    <>
+      <Panel title="Events" accent="pròxims 7 dies" icon="📅" noScroll style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'grid', gridTemplateRows: 'repeat(7, minmax(70px, 1fr))', gap: 6, height: '100%', overflowY: 'auto' }}>
+          {next7Days.map(({ dateStr, label, isToday }) => {
+            const dayEvents = byDay[dateStr] || []
+            return (
+              <div key={dateStr} style={{ display: 'flex', alignItems: 'center', gap: 12, background: isToday ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 14, padding: '0 18px', overflow: 'hidden', border: isToday ? '1px solid var(--accent)' : 'none' }}>
+                {/* Day label */}
+                <div style={{ width: 56, flexShrink: 0, textAlign: 'center' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: isToday ? 'var(--accent)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', lineHeight: 1.2 }}>
+                    {label}
+                  </div>
+                  {dayEvents.length > 0 && (
+                    <div style={{ background: 'var(--accent)', color: '#fff', borderRadius: 99, fontSize: 13, fontWeight: 700, padding: '2px 8px', marginTop: 4, display: 'inline-block' }}>{dayEvents.length}</div>
+                  )}
+                </div>
+
+                {/* Separator */}
+                <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '10px 0', flexShrink: 0 }} />
+
+                {/* Event chips */}
+                <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'stretch', minWidth: 0, padding: '8px 0', overflow: 'hidden' }}>
+                  {dayEvents.length === 0 && (
+                    <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', alignSelf: 'center' }}>Sense events</div>
+                  )}
+                  {dayEvents.map(e => {
+                    const chipColor = e.color || 'var(--accent)'
+                    return (
+                      <div
+                        key={e.id}
+                        onClick={() => setModal({ type: 'edit', data: e })}
+                        style={{
+                          position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                          flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 12,
+                          background: chipColor + '20', border: `1.5px solid ${chipColor}70`,
+                          cursor: 'pointer', userSelect: 'none',
+                        }}
+                      >
+                        {e.is_urgent && <div style={{ fontSize: 12, lineHeight: 1, marginBottom: 4 }}>⚡</div>}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: e.is_urgent ? 'var(--red)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.title}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                          {e.event_time ? <div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.event_time.slice(0,5)}</div> : <div />}
+                          {e.family_members ? <Avatar member={e.family_members} size={24} /> : <div />}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Add button */}
+                <button
+                  className="btn-ghost"
+                  onClick={() => setModal({ type: 'add', defaultDate: dateStr })}
+                  style={{ padding: '8px 16px', fontSize: 22, fontWeight: 700, borderRadius: 12, flexShrink: 0 }}
+                >+</button>
+              </div>
+            )
+          })}
+        </div>
+      </Panel>
+
+      {modal && (
+        <TabletEventModal
+          existing={modal.type === 'edit' ? modal.data : null}
+          defaultDate={modal.defaultDate}
+          familyId={familyId}
+          members={members}
+          sessionUserId={sessionUserId}
+          onSaved={() => { load(); setModal(null) }}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </>
   )
 }
 
@@ -987,7 +1069,7 @@ function TabletPane({ familyId, members, sessionUserId, defaultSection, side }) 
       {section === 'menu'     && <MenuPanel     familyId={familyId} paneId={paneId} />}
       {section === 'shopping' && <ShoppingPanel familyId={familyId} paneId={paneId} />}
       {section === 'tasks'    && <TasksPanel    familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
-      {section === 'events'   && <EventsPanel   familyId={familyId} members={members} paneId={paneId} />}
+      {section === 'events'   && <EventsPanel   familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
     </div>
   )
 

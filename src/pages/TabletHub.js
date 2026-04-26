@@ -42,13 +42,14 @@ function Panel({ title, accent, icon, children, style = {}, noScroll = false }) 
 }
 
 // ── Tablet meal modal ──────────────────────────────────────────────────────────
-function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, saveToLibrary, onSaved, onClose }) {
+function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, members, initialMemberId, saveToLibrary, onSaved, onClose }) {
   const { session } = useAuth()
-  const [name,   setName]   = useState(existing?.name  || '')
-  const [emoji,  setEmoji]  = useState(existing?.emoji || '🍽️')
-  const [time,   setTime]   = useState(existing?.time_minutes || '')
-  const [diff,   setDiff]   = useState(existing?.difficulty  || 'Fàcil')
-  const [saving, setSaving] = useState(false)
+  const [name,     setName]     = useState(existing?.name  || '')
+  const [emoji,    setEmoji]    = useState(existing?.emoji || '🍽️')
+  const [time,     setTime]     = useState(existing?.time_minutes || '')
+  const [diff,     setDiff]     = useState(existing?.difficulty  || 'Fàcil')
+  const [memberId, setMemberId] = useState(initialMemberId ?? (existing?.member_id ?? null))
+  const [saving,   setSaving]   = useState(false)
 
   async function save() {
     if (!name.trim()) return
@@ -60,6 +61,7 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, sav
         await supabase.from('meals').insert({
           family_id: familyId, meal_type: mealType, day_of_week: dayName, week_start: weekStart,
           name: name.trim(), emoji, time_minutes: time, difficulty: diff,
+          member_id: memberId || null,
           created_by: session?.user?.id,
         })
         if (saveToLibrary) {
@@ -90,12 +92,29 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, sav
           <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22 }} />
           <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
           <input className="inp" placeholder="Temps (30 min)" value={time} onChange={e => setTime(e.target.value)} />
           <select className="inp" value={diff} onChange={e => setDiff(e.target.value)}>
             {['Fàcil','Mitjana','Difícil'].map(d => <option key={d}>{d}</option>)}
           </select>
         </div>
+        {members?.length > 1 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+            <div
+              onClick={() => setMemberId(null)}
+              style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}
+              title="Família"
+            >👨‍👩‍👧</div>
+            {members.map(m => (
+              <div
+                key={m.id}
+                onClick={() => setMemberId(m.id)}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }}
+                title={m.name}
+              >{m.name[0].toUpperCase()}</div>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
             {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Afegir'}
@@ -108,13 +127,14 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, sav
 }
 
 // ── Tablet dish picker modal ───────────────────────────────────────────────────
-function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved, onClose }) {
+function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, members, onSaved, onClose }) {
   const { session } = useAuth()
   const [dishes,   setDishes]   = useState([])
   const [search,   setSearch]   = useState('')
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(null)
   const [creating, setCreating] = useState(false)
+  const [memberId, setMemberId] = useState(null)
 
   useEffect(() => {
     supabase.from('dishes').select('*, dish_ingredients(*)')
@@ -134,6 +154,7 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved
         family_id: familyId, name: dish.name, emoji: dish.emoji,
         time_minutes: dish.time_minutes, difficulty: dish.difficulty,
         meal_type: mealType, day_of_week: dayName, week_start: weekStart,
+        member_id: memberId || null,
         created_by: session?.user?.id,
       }).select().single()
       if (error) throw error
@@ -155,6 +176,8 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved
       <TabletMealModal
         mealType={mealType} familyId={familyId}
         dayName={dayName} weekStart={weekStart}
+        members={members}
+        initialMemberId={memberId}
         saveToLibrary
         onSaved={onSaved} onClose={onClose}
       />
@@ -164,12 +187,30 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 480, maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 12 }}>
           <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, marginBottom: 4 }}>
             {mealType === 'Dinar' ? '☀️' : '🌙'} {mealType} · {dayName}
           </h3>
           <div style={{ fontSize: 13, color: 'var(--muted)' }}>Escull un plat de la biblioteca</div>
         </div>
+
+        {members?.length > 1 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div
+              onClick={() => setMemberId(null)}
+              style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}
+              title="Família"
+            >👨‍👩‍👧</div>
+            {members.map(m => (
+              <div
+                key={m.id}
+                onClick={() => setMemberId(m.id)}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }}
+                title={m.name}
+              >{m.name[0].toUpperCase()}</div>
+            ))}
+          </div>
+        )}
 
         <input
           className="inp"
@@ -228,12 +269,11 @@ function TabletDishPickerModal({ mealType, familyId, dayName, weekStart, onSaved
 }
 
 // ── Menu panel ─────────────────────────────────────────────────────────────────
-function MenuPanel({ familyId, paneId }) {
-  const [meals, setMeals] = useState([])
-  const [modal, setModal] = useState(null)
+function MenuPanel({ familyId, members = [], paneId }) {
+  const [meals,       setMeals]       = useState([])
+  const [modal,       setModal]       = useState(null)
   const [midnightKey, setMidnightKey] = useState(0)
 
-  // Refresh at midnight so the 3-day view never shows stale dates on long-running tablets
   useEffect(() => {
     const now = new Date()
     const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now
@@ -275,39 +315,57 @@ function MenuPanel({ familyId, paneId }) {
         <div style={{ display: 'grid', gridTemplateRows: 'repeat(3, 1fr)', gap: 8, height: '100%' }}>
           {threeDays.map(({ dayName, weekStart, label, isToday }) => {
             const dayMeals = meals.filter(m => m.day_of_week === dayName && m.week_start === weekStart)
-            const dinar = dayMeals.find(m => m.meal_type === 'Dinar')
-            const sopar = dayMeals.find(m => m.meal_type === 'Sopar')
             return (
               <div key={dayName + weekStart} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: isToday ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 14, padding: '8px 12px', border: `1px solid ${isToday ? 'var(--accent)' : 'var(--border)'}` }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? 'var(--accent)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', flexShrink: 0 }}>
                   {label}{!isToday && ` · ${dayName}`}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, flex: 1, minHeight: 0 }}>
-                  {[['☀️', 'Dinar', dinar], ['🌙', 'Sopar', sopar]].map(([ico, mealType, meal]) => (
-                    <div
-                      key={mealType}
-                      onClick={() => setModal({ type: meal ? 'edit' : 'pick', mealType, existing: meal || null, dayName, weekStart })}
-                      style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}
-                    >
-                      <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>{ico} {mealType}</div>
-                      {meal ? (
-                        <>
-                          <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
-                            <span>{meal.emoji}</span>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</span>
-                          </div>
-                          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                            {meal.meal_ingredients?.slice(0, 3).map((ing, i) => {
-                              const c = catColor(ing.category)
-                              return <span key={i} style={{ fontSize: 9, padding: '1px 6px', borderRadius: 8, background: c + '18', color: c, fontWeight: 600 }}>{ing.name}</span>
+                  {[['☀️', 'Dinar'], ['🌙', 'Sopar']].map(([ico, mealType]) => {
+                    const slotMeals = dayMeals.filter(m => m.meal_type === mealType)
+                    return (
+                      <div key={mealType} style={{ padding: '6px 8px', borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+                        {/* Slot header with add button */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: slotMeals.length > 0 ? 4 : 0 }}>
+                          <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>{ico} {mealType}</div>
+                          <button
+                            onClick={() => setModal({ type: 'pick', mealType, dayName, weekStart })}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 15, fontWeight: 700, padding: '0 2px', lineHeight: 1 }}
+                          >+</button>
+                        </div>
+                        {/* Meals list */}
+                        {slotMeals.length === 0 ? (
+                          <button
+                            onClick={() => setModal({ type: 'pick', mealType, dayName, weekStart })}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--dim)', fontStyle: 'italic', textAlign: 'left', padding: 0, flex: 1 }}
+                          >Afegir</button>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, overflow: 'hidden' }}>
+                            {slotMeals.map(meal => {
+                              const mealMember = members.find(m => m.id === meal.member_id)
+                              return (
+                                <button
+                                  key={meal.id}
+                                  onClick={() => setModal({ type: 'edit', mealType, existing: meal, dayName, weekStart })}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0, overflow: 'hidden', width: '100%' }}
+                                >
+                                  {mealMember ? (
+                                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: mealMember.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                                      {mealMember.name[0].toUpperCase()}
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: 9, opacity: .35, flexShrink: 0 }}>👨‍👩‍👧</span>
+                                  )}
+                                  <span style={{ fontSize: 11, flexShrink: 0 }}>{meal.emoji}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</span>
+                                </button>
+                              )
                             })}
                           </div>
-                        </>
-                      ) : (
-                        <div style={{ fontSize: 11, color: 'var(--dim)', fontStyle: 'italic' }}>+ Afegir</div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -321,6 +379,7 @@ function MenuPanel({ familyId, paneId }) {
           familyId={familyId}
           dayName={modal.dayName}
           weekStart={modal.weekStart}
+          members={members}
           onSaved={() => { load(); setModal(null) }}
           onClose={() => setModal(null)}
         />
@@ -332,6 +391,7 @@ function MenuPanel({ familyId, paneId }) {
           familyId={familyId}
           dayName={modal.dayName}
           weekStart={modal.weekStart}
+          members={members}
           onSaved={() => { load(); setModal(null) }}
           onClose={() => setModal(null)}
         />
@@ -1078,10 +1138,11 @@ function TabletPane({ familyId, members, sessionUserId, defaultSection, side }) 
   const content = (
     <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
       {section === 'calendar' && <TabletCalendar familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
-      {section === 'menu'     && <MenuPanel     familyId={familyId} paneId={paneId} />}
+      {section === 'menu'     && <MenuPanel     familyId={familyId} members={members} paneId={paneId} />}
       {section === 'shopping' && <ShoppingPanel familyId={familyId} paneId={paneId} />}
       {section === 'tasks'    && <TasksPanel    familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
       {section === 'events'   && <EventsPanel   familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
+      {section === 'settings' && <SettingsPanel members={members} />}
     </div>
   )
 

@@ -54,8 +54,43 @@ function IngredientForm({ ingredients, setIngredients }) {
   )
 }
 
+// ── Member picker (shared inline component) ───────────────────────────────────
+function MemberPicker({ members, memberId, onChange }) {
+  if (!members || members.length < 2) return null
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>Per a</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          style={{
+            padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer',
+            background: !memberId ? 'var(--accent)' : 'var(--card)',
+            color: !memberId ? '#fff' : 'var(--muted)',
+            fontFamily: 'inherit', fontSize: 12, fontWeight: 700, transition: 'all .15s',
+          }}
+        >👨‍👩‍👧 Família</button>
+        {members.map(m => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => onChange(m.id)}
+            style={{
+              padding: '5px 10px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              background: memberId === m.id ? m.avatar_color : 'var(--card)',
+              color: memberId === m.id ? '#fff' : 'var(--muted)',
+              fontFamily: 'inherit', fontSize: 12, fontWeight: 700, transition: 'all .15s',
+            }}
+          >{m.name}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Dish picker modal ─────────────────────────────────────────────────────────
-function DishPickerModal({ day, mealType, familyId, weekStart, memberId, onSaved, onClose }) {
+function DishPickerModal({ day, mealType, familyId, weekStart, members, onSaved, onClose }) {
   const { session } = useAuth()
   const { t } = useTranslation()
   const [dishes,   setDishes]   = useState([])
@@ -63,6 +98,7 @@ function DishPickerModal({ day, mealType, familyId, weekStart, memberId, onSaved
   const [loading,  setLoading]  = useState(true)
   const [saving,   setSaving]   = useState(null)
   const [creating, setCreating] = useState(false)
+  const [memberId, setMemberId] = useState(null)
 
   useEffect(() => {
     supabase.from('dishes').select('*, dish_ingredients(*)')
@@ -104,7 +140,8 @@ function DishPickerModal({ day, mealType, familyId, weekStart, memberId, onSaved
       <MealModal
         day={day} mealType={mealType}
         familyId={familyId} weekStart={weekStart}
-        memberId={memberId}
+        members={members}
+        initialMemberId={memberId}
         saveToLibrary
         onSaved={onSaved} onDeleted={onSaved} onClose={onClose}
       />
@@ -115,12 +152,14 @@ function DishPickerModal({ day, mealType, familyId, weekStart, memberId, onSaved
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" onClick={e => e.stopPropagation()}>
         <div className="modal-drag" />
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom: 12 }}>
           <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 2 }}>
             {mealType === 'Dinar' ? '☀️' : '🌙'} {mealType} · {day}
           </h3>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t('menu.pick_dish')}</div>
         </div>
+
+        <MemberPicker members={members} memberId={memberId} onChange={setMemberId} />
 
         <input
           className="inp"
@@ -131,7 +170,7 @@ function DishPickerModal({ day, mealType, familyId, weekStart, memberId, onSaved
           autoFocus
         />
 
-        <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 12 }}>
+        <div style={{ maxHeight: 260, overflowY: 'auto', marginBottom: 12 }}>
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}>
               <Spinner size={24} />
@@ -186,21 +225,22 @@ function DishPickerModal({ day, mealType, familyId, weekStart, memberId, onSaved
 }
 
 // ── Meal modal (create / edit) ────────────────────────────────────────────────
-function MealModal({ day, mealType, existing, familyId, weekStart, memberId, saveToLibrary, onSaved, onDeleted, onClose }) {
+function MealModal({ day, mealType, existing, familyId, weekStart, members, initialMemberId, saveToLibrary, onSaved, onDeleted, onClose }) {
   const { session } = useAuth()
   const { t } = useTranslation()
-  const [name,  setName]  = useState(existing?.name  || '')
-  const [emoji, setEmoji] = useState(existing?.emoji || '🍽️')
-  const [time,  setTime]  = useState(existing?.time_minutes || '')
-  const [diff,  setDiff]  = useState(existing?.difficulty || 'Fàcil')
-  const [ings,  setIngs]  = useState(
+  const [name,     setName]     = useState(existing?.name  || '')
+  const [emoji,    setEmoji]    = useState(existing?.emoji || '🍽️')
+  const [time,     setTime]     = useState(existing?.time_minutes || '')
+  const [diff,     setDiff]     = useState(existing?.difficulty || 'Fàcil')
+  const [memberId, setMemberId] = useState(initialMemberId ?? (existing?.member_id ?? null))
+  const [ings,     setIngs]     = useState(
     existing?.meal_ingredients
       ? existing.meal_ingredients.map((i, idx) => ({ ...i, _id: idx }))
       : []
   )
-  const [saving,      setSaving]      = useState(false)
-  const [deleting,    setDeleting]    = useState(false)
-  const [error,       setError]       = useState('')
+  const [saving,        setSaving]        = useState(false)
+  const [deleting,      setDeleting]      = useState(false)
+  const [error,         setError]         = useState('')
   const [showIngPicker, setShowIngPicker] = useState(false)
 
   async function save() {
@@ -221,7 +261,6 @@ function MealModal({ day, mealType, existing, familyId, weekStart, memberId, sav
         if (mealErr) throw mealErr
         mealId = data.id
 
-        // Save to dishes library when creating new
         if (saveToLibrary) {
           const { data: dish } = await supabase.from('dishes').insert({
             family_id: familyId, name: name.trim(), emoji, time_minutes: time, difficulty: diff,
@@ -286,6 +325,8 @@ function MealModal({ day, mealType, existing, familyId, weekStart, memberId, sav
           </div>
         </div>
 
+        <MemberPicker members={members} memberId={memberId} onChange={setMemberId} />
+
         <IngredientForm ingredients={ings} setIngredients={setIngs} />
 
         <button
@@ -321,8 +362,9 @@ function MealModal({ day, mealType, existing, familyId, weekStart, memberId, sav
 }
 
 // ── Meal detail (view) ────────────────────────────────────────────────────────
-function MealDetail({ meal, day, onEdit, onClose }) {
+function MealDetail({ meal, day, members, onEdit, onClose }) {
   const { t } = useTranslation()
+  const mealMember = members?.find(m => m.id === meal.member_id)
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-sheet" onClick={e => e.stopPropagation()}>
@@ -340,6 +382,11 @@ function MealDetail({ meal, day, onEdit, onClose }) {
                 }}>{meal.difficulty}</span>
               )}
               <span className="chip" style={{ background: 'var(--purple-dim)', color: 'var(--purple)' }}>{day}</span>
+              {mealMember && (
+                <span className="chip" style={{ background: mealMember.avatar_color + '25', color: mealMember.avatar_color, fontWeight: 700 }}>
+                  {mealMember.name}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -366,30 +413,23 @@ function MealDetail({ meal, day, onEdit, onClose }) {
 export default function MenuPage() {
   const { family, members } = useAuth()
   const { t } = useTranslation()
-  const [meals,          setMeals]          = useState([])
-  const [activeDay,      setActiveDay]      = useState(DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1])
-  const [modal,          setModal]          = useState(null)
-  const [loading,        setLoading]        = useState(true)
-  const [selectedMember, setSelectedMember] = useState(null) // null = menú familiar
+  const [meals,     setMeals]     = useState([])
+  const [activeDay, setActiveDay] = useState(DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1])
+  const [modal,     setModal]     = useState(null)
+  const [loading,   setLoading]   = useState(true)
 
   const weekStart = getWeekStart()
 
   const load = useCallback(async () => {
     if (!family) return
-    let query = supabase
+    const { data } = await supabase
       .from('meals')
       .select('*, meal_ingredients(*)')
       .eq('family_id', family.id)
       .eq('week_start', weekStart)
-    if (selectedMember) {
-      query = query.eq('member_id', selectedMember.id)
-    } else {
-      query = query.is('member_id', null)
-    }
-    const { data } = await query
     setMeals(data || [])
     setLoading(false)
-  }, [family, weekStart, selectedMember])
+  }, [family, weekStart])
 
   useEffect(() => {
     load()
@@ -401,53 +441,20 @@ export default function MenuPage() {
     return () => supabase.removeChannel(ch)
   }, [load, family])
 
-  function getMeal(day, type) {
-    return meals.find(m => m.day_of_week === day && m.meal_type === type)
+  function getMeals(day, type) {
+    return meals.filter(m => m.day_of_week === day && m.meal_type === type)
   }
-
-  const mealsCount = meals.length
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
 
   return (
     <div style={{ padding: '20px 16px' }} className="fu">
-      <PageHeader title={t('menu.title')} accent={t('menu.accent')} subtitle={`${mealsCount} plats`} />
-
-      {/* Member selector */}
-      {members.length > 1 && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
-          <button
-            onClick={() => setSelectedMember(null)}
-            style={{
-              flexShrink: 0, padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
-              background: !selectedMember ? 'var(--accent)' : 'var(--card)',
-              color: !selectedMember ? '#fff' : 'var(--muted)',
-              fontFamily: 'inherit', fontSize: 12, fontWeight: 700, transition: 'all .15s',
-            }}
-          >
-            👨‍👩‍👧 Família
-          </button>
-          {members.map(m => (
-            <button
-              key={m.id}
-              onClick={() => setSelectedMember(m)}
-              style={{
-                flexShrink: 0, padding: '7px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                background: selectedMember?.id === m.id ? m.avatar_color : 'var(--card)',
-                color: selectedMember?.id === m.id ? '#fff' : 'var(--muted)',
-                fontFamily: 'inherit', fontSize: 12, fontWeight: 700, transition: 'all .15s',
-              }}
-            >
-              {m.name}
-            </button>
-          ))}
-        </div>
-      )}
+      <PageHeader title={t('menu.title')} accent={t('menu.accent')} subtitle={`${meals.length} plats`} />
 
       {/* Day pills */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 4 }}>
         {DAYS_FULL.map((d, i) => {
-          const filled = [getMeal(d, 'Dinar'), getMeal(d, 'Sopar')].filter(Boolean).length
+          const filled = MEAL_TYPES.filter(type => getMeals(d, type).length > 0).length
           return (
             <button key={d} onClick={() => setActiveDay(d)} style={{
               flexShrink: 0, minWidth: 40, padding: '7px 9px', borderRadius: 10, border: 'none', cursor: 'pointer',
@@ -469,43 +476,59 @@ export default function MenuPage() {
       {/* Active day slots */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 16, fontFamily: 'Fraunces, serif', fontWeight: 700, marginBottom: 10 }}>{activeDay}</div>
-        {MEAL_TYPES.map(meal => {
-          const data = getMeal(activeDay, meal)
+        {MEAL_TYPES.map(mealType => {
+          const slotMeals = getMeals(activeDay, mealType)
           return (
-            <div key={meal} style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 5 }}>
-                {meal === 'Dinar' ? '☀️' : '🌙'} {meal}
+            <div key={mealType} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>
+                {mealType === 'Dinar' ? '☀️' : '🌙'} {mealType}
               </div>
-              {data ? (
-                <>
-                  <div className="meal-slot filled" onClick={() => setModal({ type: 'view', day: activeDay, mealType: meal, data })}>
-                    <span style={{ fontSize: 26, flexShrink: 0 }}>{data.emoji || '🍽️'}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 8 }}>
-                        {data.time_minutes && <span>{data.time_minutes}</span>}
-                        {data.difficulty && <span style={{ color: data.difficulty === 'Fàcil' ? 'var(--teal)' : data.difficulty === 'Difícil' ? 'var(--red)' : 'var(--yellow)' }}>{data.difficulty}</span>}
-                        {data.meal_ingredients?.length > 0 && <span>{data.meal_ingredients.length} ing.</span>}
+
+              {slotMeals.map(data => {
+                const mealMember = members.find(m => m.id === data.member_id)
+                return (
+                  <div key={data.id} style={{ marginBottom: 8 }}>
+                    <div className="meal-slot filled" onClick={() => setModal({ type: 'view', day: activeDay, mealType, data })}>
+                      {mealMember ? (
+                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: mealMember.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                          {mealMember.name[0].toUpperCase()}
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: 17, opacity: .3, flexShrink: 0 }}>👨‍👩‍👧</span>
+                      )}
+                      <span style={{ fontSize: 24, flexShrink: 0 }}>{data.emoji || '🍽️'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 8 }}>
+                          {data.time_minutes && <span>{data.time_minutes}</span>}
+                          {data.difficulty && <span style={{ color: data.difficulty === 'Fàcil' ? 'var(--teal)' : data.difficulty === 'Difícil' ? 'var(--red)' : 'var(--yellow)' }}>{data.difficulty}</span>}
+                          {data.meal_ingredients?.length > 0 && <span>{data.meal_ingredients.length} ing.</span>}
+                        </div>
                       </div>
+                      <button className="btn-icon" onClick={e => { e.stopPropagation(); setModal({ type: 'edit', day: activeDay, mealType, data }) }}>✎</button>
                     </div>
-                    <button className="btn-icon" onClick={e => { e.stopPropagation(); setModal({ type: 'edit', day: activeDay, mealType: meal, data }) }}>✎</button>
+                    {data.meal_ingredients?.length > 0 && (
+                      <div style={{ marginTop: 4, marginLeft: 2, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {data.meal_ingredients.slice(0, 4).map((ing, i) => {
+                          const c = catColor(ing.category)
+                          return <span key={i} className="chip" style={{ background: c + '18', color: c }}>{ing.name}</span>
+                        })}
+                        {data.meal_ingredients.length > 4 && <span className="chip" style={{ background: 'var(--border)', color: 'var(--muted)' }}>+{data.meal_ingredients.length - 4} més</span>}
+                      </div>
+                    )}
                   </div>
-                  {data.meal_ingredients?.length > 0 && (
-                    <div style={{ marginTop: 6, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {data.meal_ingredients.slice(0, 4).map((ing, i) => {
-                        const c = catColor(ing.category)
-                        return <span key={i} className="chip" style={{ background: c + '18', color: c }}>{ing.name}</span>
-                      })}
-                      {data.meal_ingredients.length > 4 && <span className="chip" style={{ background: 'var(--border)', color: 'var(--muted)' }}>+{data.meal_ingredients.length - 4} més</span>}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="meal-slot empty" onClick={() => setModal({ type: 'pick', day: activeDay, mealType: meal })} style={{ justifyContent: 'center', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 20, opacity: .35 }}>+</span>
-                  <span style={{ fontSize: 10, color: 'var(--dim)' }}>{t('menu.new_day')}</span>
-                </div>
-              )}
+                )
+              })}
+
+              {/* Add button — always visible */}
+              <div
+                className="meal-slot empty"
+                onClick={() => setModal({ type: 'pick', day: activeDay, mealType })}
+                style={{ justifyContent: 'center', flexDirection: 'column', gap: 3 }}
+              >
+                <span style={{ fontSize: 20, opacity: .35 }}>+</span>
+                <span style={{ fontSize: 10, color: 'var(--dim)' }}>{t('menu.new_day')}</span>
+              </div>
             </div>
           )
         })}
@@ -514,18 +537,37 @@ export default function MenuPage() {
       {/* Week summary */}
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Resum setmana</div>
       {DAYS_FULL.map((d, i) => {
-        const dn = getMeal(d, 'Dinar'), sp = getMeal(d, 'Sopar'), isAct = d === activeDay
+        const dinars = getMeals(d, 'Dinar')
+        const sopars = getMeals(d, 'Sopar')
+        const dn = dinars[0], sp = sopars[0]
+        const dnExtra = dinars.length - 1, spExtra = sopars.length - 1
+        const isAct = d === activeDay
+        const filledSlots = [dinars.length > 0, sopars.length > 0].filter(Boolean).length
         return (
           <div key={d} className="card" onClick={() => setActiveDay(d)} style={{ padding: '10px 14px', marginBottom: 6, cursor: 'pointer', borderColor: isAct ? '#FF6B3550' : 'var(--border)', background: isAct ? 'var(--accent-dim)' : 'var(--card)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 30, fontSize: 10, fontWeight: 700, color: isAct ? 'var(--accent)' : 'var(--muted)', flexShrink: 0 }}>{DAYS_SHORT[i].toUpperCase()}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {dn ? <div style={{ fontSize: 12, fontWeight: 500, display: 'flex', gap: 5, alignItems: 'center' }}><span>{dn.emoji}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dn.name}</span></div>
-                    : <div style={{ fontSize: 11, color: 'var(--dim)' }}>☀️ {t('menu.lunch')}</div>}
-                {sp ? <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 5, alignItems: 'center' }}><span>{sp.emoji}</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sp.name}</span></div>
-                    : <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>🌙 {t('menu.dinner')}</div>}
+                {dn ? (
+                  <div style={{ fontSize: 12, fontWeight: 500, display: 'flex', gap: 5, alignItems: 'center' }}>
+                    <span>{dn.emoji}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dn.name}</span>
+                    {dnExtra > 0 && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700 }}>+{dnExtra}</span>}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: 'var(--dim)' }}>☀️ {t('menu.lunch')}</div>
+                )}
+                {sp ? (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 5, alignItems: 'center' }}>
+                    <span>{sp.emoji}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sp.name}</span>
+                    {spExtra > 0 && <span style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700 }}>+{spExtra}</span>}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>🌙 {t('menu.dinner')}</div>
+                )}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--dim)' }}>{[dn, sp].filter(Boolean).length}/2</div>
+              <div style={{ fontSize: 11, color: 'var(--dim)' }}>{filledSlots}/2</div>
             </div>
           </div>
         )
@@ -536,7 +578,7 @@ export default function MenuPage() {
         <DishPickerModal
           day={modal.day} mealType={modal.mealType}
           familyId={family.id} weekStart={weekStart}
-          memberId={selectedMember?.id || null}
+          members={members}
           onSaved={load} onClose={() => setModal(null)}
         />
       )}
@@ -545,13 +587,14 @@ export default function MenuPage() {
           day={modal.day} mealType={modal.mealType}
           existing={modal.data}
           familyId={family.id} weekStart={weekStart}
-          memberId={selectedMember?.id || null}
+          members={members}
           onSaved={load} onDeleted={load} onClose={() => setModal(null)}
         />
       )}
       {modal?.type === 'view' && (
         <MealDetail
           meal={modal.data} day={modal.day}
+          members={members}
           onEdit={() => setModal({ ...modal, type: 'edit' })}
           onClose={() => setModal(null)}
         />

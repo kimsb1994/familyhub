@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import { getWeekStart, mergeIngredients, groupBy, catColor, DAYS_FULL, DAYS_SHORT } from '../lib/constants'
+import { getWeekStart, mergeIngredients, groupBy, catColor, CATEGORIES, DAYS_FULL, DAYS_SHORT } from '../lib/constants'
 import { Avatar, Spinner } from '../components/ui'
 import { useKioskMode } from '../hooks/useKioskMode'
 import QuickAddModal from '../components/QuickAddModal'
@@ -49,7 +49,22 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, mem
   const [time,     setTime]     = useState(existing?.time_minutes || '')
   const [diff,     setDiff]     = useState(existing?.difficulty  || 'Fàcil')
   const [memberId, setMemberId] = useState(initialMemberId ?? (existing?.member_id ?? null))
-  const [saving,   setSaving]   = useState(false)
+  const [ings,     setIngs]     = useState(
+    existing?.meal_ingredients
+      ? existing.meal_ingredients.map((i, idx) => ({ ...i, _id: idx }))
+      : []
+  )
+  const [ingName, setIngName] = useState('')
+  const [ingQty,  setIngQty]  = useState('')
+  const [ingUnit, setIngUnit] = useState('g')
+  const [ingCat,  setIngCat]  = useState(CATEGORIES[0])
+  const [saving,  setSaving]  = useState(false)
+
+  function addIng() {
+    if (!ingName.trim()) return
+    setIngs(p => [...p, { name: ingName.trim(), qty: ingQty || '1', unit: ingUnit, category: ingCat, _id: Date.now() }])
+    setIngName(''); setIngQty('')
+  }
 
   async function save() {
     if (!name.trim()) return
@@ -57,17 +72,33 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, mem
     try {
       if (existing) {
         await supabase.from('meals').update({ name: name.trim(), emoji, time_minutes: time, difficulty: diff }).eq('id', existing.id)
+        await supabase.from('meal_ingredients').delete().eq('meal_id', existing.id)
+        if (ings.length > 0) {
+          await supabase.from('meal_ingredients').insert(
+            ings.map(({ name, qty, unit, category }) => ({ meal_id: existing.id, name, qty, unit, category }))
+          )
+        }
       } else {
-        await supabase.from('meals').insert({
+        const { data: meal } = await supabase.from('meals').insert({
           family_id: familyId, meal_type: mealType, day_of_week: dayName, week_start: weekStart,
           name: name.trim(), emoji, time_minutes: time, difficulty: diff,
           member_id: memberId || null,
           created_by: session?.user?.id,
-        })
+        }).select().single()
+        if (meal && ings.length > 0) {
+          await supabase.from('meal_ingredients').insert(
+            ings.map(({ name, qty, unit, category }) => ({ meal_id: meal.id, name, qty, unit, category }))
+          )
+        }
         if (saveToLibrary) {
-          await supabase.from('dishes').insert({
+          const { data: dish } = await supabase.from('dishes').insert({
             family_id: familyId, name: name.trim(), emoji, time_minutes: time, difficulty: diff,
-          })
+          }).select().single()
+          if (dish && ings.length > 0) {
+            await supabase.from('dish_ingredients').insert(
+              ings.map(({ name, qty, unit, category }) => ({ dish_id: dish.id, name, qty, unit, category }))
+            )
+          }
         }
       }
       onSaved()
@@ -83,39 +114,96 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, mem
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 400, maxWidth: '90vw' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 520, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexShrink: 0 }}>
           <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nou'} {mealType}</h3>
           {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
         </div>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22 }} />
-          <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-          <input className="inp" placeholder="Temps (30 min)" value={time} onChange={e => setTime(e.target.value)} />
-          <select className="inp" value={diff} onChange={e => setDiff(e.target.value)}>
-            {['Fàcil','Mitjana','Difícil'].map(d => <option key={d}>{d}</option>)}
-          </select>
-        </div>
-        {members?.length > 1 && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-            <div
-              onClick={() => setMemberId(null)}
-              style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}
-              title="Família"
-            >👨‍👩‍👧</div>
-            {members.map(m => (
-              <div
-                key={m.id}
-                onClick={() => setMemberId(m.id)}
-                style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }}
-                title={m.name}
-              >{m.name[0].toUpperCase()}</div>
-            ))}
+
+        {/* Scrollable body */}
+        <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+
+          {/* Name + emoji */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
+            <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 8 }}>
+
+          {/* Time + difficulty */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            <input className="inp" placeholder="Temps (30 min)" value={time} onChange={e => setTime(e.target.value)} />
+            <select className="inp" value={diff} onChange={e => setDiff(e.target.value)}>
+              {['Fàcil','Mitjana','Difícil'].map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+
+          {/* Member picker */}
+          {members?.length > 1 && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
+              <div
+                onClick={() => setMemberId(null)}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}
+                title="Família"
+              >👨‍👩‍👧</div>
+              {members.map(m => (
+                <div
+                  key={m.id}
+                  onClick={() => setMemberId(m.id)}
+                  style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }}
+                  title={m.name}
+                >{m.name[0].toUpperCase()}</div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Ingredients ── */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 10 }}>
+              Ingredients
+            </div>
+
+            {/* Ingredient list */}
+            {ings.length > 0 && (
+              <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {ings.map((ing, i) => {
+                  const c = catColor(ing.category)
+                  return (
+                    <div key={ing._id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{ing.name}</span>
+                      <span style={{ fontSize: 12, color: 'var(--muted)', background: c + '20', color: c, padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>{ing.qty} {ing.unit}</span>
+                      <button onClick={() => setIngs(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15, padding: '0 2px', lineHeight: 1 }}>✕</button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Add ingredient row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 70px 60px', gap: 6, marginBottom: 6 }}>
+              <input
+                className="inp" placeholder="Nom de l'ingredient"
+                value={ingName} onChange={e => setIngName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addIng()}
+              />
+              <input className="inp" placeholder="Qty" value={ingQty} onChange={e => setIngQty(e.target.value)} style={{ textAlign: 'center' }} />
+              <input className="inp" placeholder="u." value={ingUnit} onChange={e => setIngUnit(e.target.value)} style={{ textAlign: 'center' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select className="inp" value={ingCat} onChange={e => setIngCat(e.target.value)} style={{ flex: 1 }}>
+                {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+              <button type="button" onClick={addIng} className="btn-primary" style={{ padding: '9px 16px', flexShrink: 0 }}>
+                + Afegir
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer buttons */}
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
           <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
             {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Afegir'}
           </button>
@@ -316,53 +404,77 @@ function MenuPanel({ familyId, members = [], paneId }) {
           {threeDays.map(({ dayName, weekStart, label, isToday }) => {
             const dayMeals = meals.filter(m => m.day_of_week === dayName && m.week_start === weekStart)
             return (
-              <div key={dayName + weekStart} style={{ display: 'flex', flexDirection: 'column', gap: 5, background: isToday ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 14, padding: '8px 12px', border: `1px solid ${isToday ? 'var(--accent)' : 'var(--border)'}` }}>
+              <div key={dayName + weekStart} style={{ display: 'flex', flexDirection: 'column', gap: 6, background: isToday ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 14, padding: '10px 12px', border: `1.5px solid ${isToday ? 'var(--accent)' : 'var(--border)'}` }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? 'var(--accent)' : 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.06em', flexShrink: 0 }}>
                   {label}{!isToday && ` · ${dayName}`}
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, flex: 1, minHeight: 0 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, flex: 1, minHeight: 0 }}>
                   {[['☀️', 'Dinar'], ['🌙', 'Sopar']].map(([ico, mealType]) => {
                     const slotMeals = dayMeals.filter(m => m.meal_type === mealType)
                     return (
-                      <div key={mealType} style={{ padding: '6px 8px', borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-                        {/* Slot header with add button */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: slotMeals.length > 0 ? 4 : 0 }}>
-                          <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>{ico} {mealType}</div>
+                      <div key={mealType} style={{ display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden' }}>
+                        {/* Slot header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ fontSize: 11, color: 'var(--text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', opacity: .7 }}>{ico} {mealType}</div>
                           <button
                             onClick={() => setModal({ type: 'pick', mealType, dayName, weekStart })}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 15, fontWeight: 700, padding: '0 2px', lineHeight: 1 }}
+                            style={{ background: 'var(--accent)', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 16, fontWeight: 700, width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, lineHeight: 1 }}
                           >+</button>
                         </div>
-                        {/* Meals list */}
-                        {slotMeals.length === 0 ? (
-                          <button
-                            onClick={() => setModal({ type: 'pick', mealType, dayName, weekStart })}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--dim)', fontStyle: 'italic', textAlign: 'left', padding: 0, flex: 1 }}
-                          >Afegir</button>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, overflow: 'hidden' }}>
-                            {slotMeals.map(meal => {
+                        {/* Meal cards */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, overflow: 'auto' }}>
+                          {slotMeals.length === 0 ? (
+                            <div
+                              onClick={() => setModal({ type: 'pick', mealType, dayName, weekStart })}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 8px', borderRadius: 10, border: '1.5px dashed var(--border)', cursor: 'pointer', color: 'var(--muted)', fontSize: 12 }}
+                            >
+                              <span style={{ fontSize: 16, opacity: .5 }}>+</span> Afegir plat
+                            </div>
+                          ) : (
+                            slotMeals.map(meal => {
                               const mealMember = members.find(m => m.id === meal.member_id)
+                              const accentColor = mealMember?.avatar_color || 'var(--accent)'
                               return (
-                                <button
+                                <div
                                   key={meal.id}
                                   onClick={() => setModal({ type: 'edit', mealType, existing: meal, dayName, weekStart })}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0, overflow: 'hidden', width: '100%' }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    padding: '8px 10px', borderRadius: 10,
+                                    background: 'var(--card)',
+                                    border: `1.5px solid ${mealMember ? mealMember.avatar_color + '60' : 'var(--border)'}`,
+                                    cursor: 'pointer', transition: 'opacity .15s',
+                                  }}
                                 >
+                                  {/* Member avatar */}
                                   {mealMember ? (
-                                    <div style={{ width: 14, height: 14, borderRadius: '50%', background: mealMember.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: mealMember.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                                       {mealMember.name[0].toUpperCase()}
                                     </div>
                                   ) : (
-                                    <span style={{ fontSize: 9, opacity: .35, flexShrink: 0 }}>👨‍👩‍👧</span>
+                                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent-dim)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>
+                                      👨‍👩‍👧
+                                    </div>
                                   )}
-                                  <span style={{ fontSize: 11, flexShrink: 0 }}>{meal.emoji}</span>
-                                  <span style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</span>
-                                </button>
+                                  {/* Dish info */}
+                                  <span style={{ fontSize: 20, flexShrink: 0 }}>{meal.emoji || '🍽️'}</span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+                                      {meal.name}
+                                    </div>
+                                    {mealMember && (
+                                      <div style={{ fontSize: 10, fontWeight: 600, color: accentColor, marginTop: 1 }}>
+                                        {mealMember.name}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* Edit hint */}
+                                  <span style={{ fontSize: 13, color: 'var(--muted)', flexShrink: 0, opacity: .6 }}>✎</span>
+                                </div>
                               )
-                            })}
-                          </div>
-                        )}
+                            })
+                          )}
+                        </div>
                       </div>
                     )
                   })}
@@ -775,29 +887,29 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
   return (
     <Panel title="Tasques" accent="setmanals" icon="✅" noScroll style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 8-row layout: 7 days + imprevistos */}
-      <div style={{ display: 'grid', gridTemplateRows: 'repeat(8, minmax(80px, 1fr))', gap: 6, height: '100%', overflowY: 'auto' }}>
+      <div style={{ display: 'grid', gridTemplateRows: 'repeat(8, minmax(48px, 1fr))', gap: 4, height: '100%', overflowY: 'auto' }}>
         {ALL_ROWS.map(({ key, label, isExtra }) => {
           const dayTasks = byDay[key] || []
           const pending  = dayTasks.filter(t => !t.is_done).length
           return (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, background: isExtra ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 14, padding: '0 18px', overflow: 'hidden', border: isExtra ? '1px dashed var(--accent)' : 'none' }}>
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, background: isExtra ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 10, padding: '0 12px', overflow: 'hidden', border: isExtra ? '1px dashed var(--accent)' : 'none' }}>
               {/* Day label */}
-              <div style={{ width: 56, flexShrink: 0, textAlign: 'center' }}>
-                <div style={{ fontSize: isExtra ? 14 : 18, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.05em', lineHeight: 1.2 }}>
-                  {isExtra ? '🎲 Impre­vistos' : label}
+              <div style={{ width: 40, flexShrink: 0, textAlign: 'center' }}>
+                <div style={{ fontSize: isExtra ? 10 : 13, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.05em', lineHeight: 1.2 }}>
+                  {isExtra ? '🎲' : label}
                 </div>
                 {pending > 0 && (
-                  <div style={{ background: 'var(--accent)', color: '#fff', borderRadius: 99, fontSize: 13, fontWeight: 700, padding: '2px 8px', marginTop: 4, display: 'inline-block' }}>{pending}</div>
+                  <div style={{ background: 'var(--accent)', color: '#fff', borderRadius: 99, fontSize: 10, fontWeight: 700, padding: '1px 5px', marginTop: 2, display: 'inline-block' }}>{pending}</div>
                 )}
               </div>
 
               {/* Separator */}
-              <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '10px 0', flexShrink: 0 }} />
+              <div style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '6px 0', flexShrink: 0 }} />
 
-              {/* Horizontal task chips — flex, no scroll, always fit */}
-              <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'stretch', minWidth: 0, padding: '8px 0', overflow: 'hidden' }}>
+              {/* Horizontal task chips */}
+              <div style={{ flex: 1, display: 'flex', gap: 5, alignItems: 'stretch', minWidth: 0, padding: '5px 0', overflow: 'hidden' }}>
                 {dayTasks.length === 0 && (
-                  <div style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', alignSelf: 'center' }}>Cap tasca</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic', alignSelf: 'center' }}>Cap tasca</div>
                 )}
                 {dayTasks.map(task => (
                   <div
@@ -805,7 +917,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                     onClick={() => toggleDone(task)}
                     style={{
                       position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                      flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 12,
+                      flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8,
                       background: cardBg(task),
                       border: `1.5px solid ${cardBorder(task)}`,
                       cursor: 'pointer', userSelect: 'none',
@@ -814,28 +926,28 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                     {/* Edit button */}
                     <button
                       onClick={e => { e.stopPropagation(); setModal({ existing: task }) }}
-                      style={{ position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--muted)', padding: 2, lineHeight: 1 }}
+                      style={{ position: 'absolute', top: 3, right: 3, background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--muted)', padding: 1, lineHeight: 1 }}
                     >✏️</button>
 
                     {/* Urgent badge */}
-                    {task.is_urgent && <div style={{ fontSize: 14, lineHeight: 1, marginBottom: 4 }}>⚡</div>}
+                    {task.is_urgent && <div style={{ fontSize: 10, lineHeight: 1, marginBottom: 2 }}>⚡</div>}
 
                     {/* Task text */}
-                    <div style={{ fontSize: 14, fontWeight: task.is_urgent ? 700 : 600, color: task.is_urgent ? 'var(--red)' : 'var(--text)', textDecoration: task.is_done ? 'line-through' : 'none', paddingRight: 20, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 11, fontWeight: task.is_urgent ? 700 : 600, color: task.is_urgent ? 'var(--red)' : 'var(--text)', textDecoration: task.is_done ? 'line-through' : 'none', paddingRight: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {task.text}
                     </div>
 
                     {/* Bottom row: amount + avatar */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
                       {task.amount
-                        ? <div style={{ fontSize: 14, color: 'var(--muted)' }}>{task.amount}€</div>
+                        ? <div style={{ fontSize: 10, color: 'var(--muted)' }}>{task.amount}€</div>
                         : <div />
                       }
                       {task.family_members
-                        ? <div style={{ width: 32, height: 32, borderRadius: '50%', background: task.family_members.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#fff' }}>
+                        ? <div style={{ width: 20, height: 20, borderRadius: '50%', background: task.family_members.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>
                             {(task.family_members?.name?.[0] || '?').toUpperCase()}
                           </div>
-                        : <div style={{ width: 32, height: 32, borderRadius: '50%', background: FAMILY_COLOR + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>👨‍👩‍👧</div>
+                        : <div style={{ width: 20, height: 20, borderRadius: '50%', background: FAMILY_COLOR + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>👨‍👩‍👧</div>
                       }
                     </div>
                   </div>
@@ -846,7 +958,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
               <button
                 className="btn-ghost"
                 onClick={() => setModal({ day: key })}
-                style={{ padding: '8px 16px', fontSize: 22, fontWeight: 700, borderRadius: 12, flexShrink: 0 }}
+                style={{ padding: '4px 10px', fontSize: 16, fontWeight: 700, borderRadius: 8, flexShrink: 0 }}
               >+</button>
             </div>
           )
@@ -1093,10 +1205,235 @@ function SettingsPanel({ members }) {
   )
 }
 
+// ── Tablet dish library modal ──────────────────────────────────────────────────
+function TabletDishLibraryModal({ existing, familyId, onSaved, onClose }) {
+  const [name,   setName]   = useState(existing?.name || '')
+  const [emoji,  setEmoji]  = useState(existing?.emoji || '🍽️')
+  const [time,   setTime]   = useState(existing?.time_minutes || '')
+  const [diff,   setDiff]   = useState(existing?.difficulty || 'Fàcil')
+  const [ings,   setIngs]   = useState(
+    existing?.dish_ingredients
+      ? existing.dish_ingredients.map((i, idx) => ({ ...i, _id: idx }))
+      : []
+  )
+  const [showIngPicker, setShowIngPicker] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  function handleAddIngredient(ingName, category) {
+    if (ings.some(i => i.name.toLowerCase() === ingName.toLowerCase())) return
+    setIngs(p => [...p, { name: ingName, category, qty: '1', unit: 'u.', _id: Date.now() }])
+  }
+
+  function updateIng(id, field, value) {
+    setIngs(p => p.map(i => (i._id === id ? { ...i, [field]: value } : i)))
+  }
+
+  async function save() {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      if (existing) {
+        await supabase.from('dishes').update({ name: name.trim(), emoji, time_minutes: time, difficulty: diff }).eq('id', existing.id)
+        await supabase.from('dish_ingredients').delete().eq('dish_id', existing.id)
+        if (ings.length > 0) {
+          await supabase.from('dish_ingredients').insert(
+            ings.map(({ name, qty, unit, category }) => ({ dish_id: existing.id, name, qty, unit, category }))
+          )
+        }
+      } else {
+        const { data: dish } = await supabase.from('dishes').insert({
+          family_id: familyId, name: name.trim(), emoji, time_minutes: time, difficulty: diff,
+        }).select().single()
+        if (dish && ings.length > 0) {
+          await supabase.from('dish_ingredients').insert(
+            ings.map(({ name, qty, unit, category }) => ({ dish_id: dish.id, name, qty, unit, category }))
+          )
+        }
+      }
+      onSaved()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function del() {
+    await supabase.from('dishes').delete().eq('id', existing.id)
+    onSaved()
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 520, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexShrink: 0 }}>
+            <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nou'} plat</h3>
+            {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+          </div>
+
+          {/* Scrollable body */}
+          <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+
+            {/* Name + emoji */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
+              <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+            </div>
+
+            {/* Time + difficulty */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 18 }}>
+              <input className="inp" placeholder="Temps (30 min)" value={time} onChange={e => setTime(e.target.value)} />
+              <select className="inp" value={diff} onChange={e => setDiff(e.target.value)}>
+                {['Fàcil', 'Mitjana', 'Difícil'].map(d => <option key={d}>{d}</option>)}
+              </select>
+            </div>
+
+            {/* Ingredients */}
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em' }}>
+                  Ingredients {ings.length > 0 && <span style={{ color: 'var(--accent)' }}>({ings.length})</span>}
+                </div>
+                <button type="button" className="btn-primary" onClick={() => setShowIngPicker(true)} style={{ padding: '6px 12px', fontSize: 12 }}>
+                  🥦 Escollir ingredients
+                </button>
+              </div>
+
+              {ings.length === 0 ? (
+                <div onClick={() => setShowIngPicker(true)} style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)', fontSize: 13, border: '1.5px dashed var(--border)', borderRadius: 10, cursor: 'pointer' }}>
+                  Cap ingredient — clica per afegir del catàleg
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {ings.map((ing, i) => {
+                    const c = catColor(ing.category)
+                    return (
+                      <div key={ing._id ?? i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 10, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: c, flexShrink: 0 }} />
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{ing.name}</span>
+                        <input
+                          className="inp"
+                          value={ing.qty}
+                          onChange={e => updateIng(ing._id ?? i, 'qty', e.target.value)}
+                          style={{ width: 52, textAlign: 'center', padding: '4px 6px', fontSize: 12 }}
+                        />
+                        <input
+                          className="inp"
+                          value={ing.unit}
+                          onChange={e => updateIng(ing._id ?? i, 'unit', e.target.value)}
+                          style={{ width: 44, textAlign: 'center', padding: '4px 6px', fontSize: 12 }}
+                        />
+                        <button onClick={() => setIngs(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 15, padding: '0 2px', lineHeight: 1 }}>✕</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+            <button className="btn-primary" onClick={save} disabled={saving || !name.trim()} style={{ flex: 1, justifyContent: 'center' }}>
+              {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Crear plat'}
+            </button>
+            <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
+          </div>
+        </div>
+      </div>
+
+      {showIngPicker && (
+        <QuickAddModal
+          existingNames={ings.map(i => i.name)}
+          onAddIngredient={handleAddIngredient}
+          onClose={() => setShowIngPicker(false)}
+        />
+      )}
+    </>
+  )
+}
+
+// ── Dishes panel ───────────────────────────────────────────────────────────────
+function DishesPanel({ familyId, paneId }) {
+  const [dishes,  setDishes]  = useState([])
+  const [search,  setSearch]  = useState('')
+  const [loading, setLoading] = useState(true)
+  const [modal,   setModal]   = useState(null)
+
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('dishes').select('*, dish_ingredients(*)')
+      .eq('family_id', familyId)
+      .order('name')
+    setDishes(data || [])
+    setLoading(false)
+  }, [familyId])
+
+  useEffect(() => {
+    load()
+    const ch = supabase.channel(`hub-dishes-${paneId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dishes', filter: `family_id=eq.${familyId}` }, load)
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [load, familyId])
+
+  const filtered = search
+    ? dishes.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))
+    : dishes
+
+  return (
+    <>
+      <Panel title="Biblioteca de" accent="plats" icon="📖" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 4, flexShrink: 0 }}>
+          <input className="inp" placeholder="Buscar plat..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 1 }} />
+          <button className="btn-primary" onClick={() => setModal('new')} style={{ padding: '9px 16px', flexShrink: 0 }}>+ Nou</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}><Spinner size={24} /></div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--muted)', fontSize: 13 }}>
+              {search ? 'Sense resultats' : 'Encara no hi ha plats. Afegeix-ne un!'}
+            </div>
+          ) : filtered.map(dish => (
+            <div
+              key={dish.id}
+              onClick={() => setModal({ existing: dish })}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}
+            >
+              <span style={{ fontSize: 28, flexShrink: 0 }}>{dish.emoji || '🍽️'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dish.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, display: 'flex', gap: 10 }}>
+                  {dish.time_minutes && <span>⏱ {dish.time_minutes}</span>}
+                  {dish.difficulty && <span>{dish.difficulty}</span>}
+                  {dish.dish_ingredients?.length > 0 && <span>🥦 {dish.dish_ingredients.length} ing.</span>}
+                </div>
+              </div>
+              <span style={{ color: 'var(--muted)', fontSize: 14, opacity: .6 }}>✎</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+
+      {modal && (
+        <TabletDishLibraryModal
+          existing={modal === 'new' ? null : modal.existing}
+          familyId={familyId}
+          onSaved={() => { load(); setModal(null) }}
+          onClose={() => setModal(null)}
+        />
+      )}
+    </>
+  )
+}
+
 // ── Pane navigation ────────────────────────────────────────────────────────────
 const PANE_SECTIONS = [
   { id: 'calendar', icon: '📅', label: 'Calendari' },
   { id: 'menu',     icon: '🍽️', label: 'Menú'      },
+  { id: 'dishes',   icon: '📖', label: 'Plats'      },
   { id: 'shopping', icon: '🛒', label: 'Compra'    },
   { id: 'tasks',    icon: '✅', label: 'Tasques'   },
   { id: 'events',   icon: '📋', label: 'Events'    },
@@ -1139,6 +1476,7 @@ function TabletPane({ familyId, members, sessionUserId, defaultSection, side }) 
     <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
       {section === 'calendar' && <TabletCalendar familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
       {section === 'menu'     && <MenuPanel     familyId={familyId} members={members} paneId={paneId} />}
+      {section === 'dishes'   && <DishesPanel   familyId={familyId} paneId={paneId} />}
       {section === 'shopping' && <ShoppingPanel familyId={familyId} paneId={paneId} />}
       {section === 'tasks'    && <TasksPanel    familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}
       {section === 'events'   && <EventsPanel   familyId={familyId} members={members} sessionUserId={sessionUserId} paneId={paneId} />}

@@ -820,37 +820,40 @@ export function EventsPanel({ familyId, members, sessionUserId, paneId }) {
 }
 
 // ── Tablet task modal ──────────────────────────────────────────────────────────
-function TabletTaskModal({ existing, defaultDay, familyId, members, sessionUserId, onSaved, onClose }) {
+function TabletTaskModal({ existing, existingMonthly, defaultDay, defaultDayOfMonth, familyId, members, sessionUserId, onSaved, onClose }) {
   const weekStart = getWeekStart()
-  const [text,     setText]     = useState(existing?.text || '')
-  const [day,      setDay]      = useState(existing ? (existing.day_of_week ?? null) : (defaultDay !== undefined ? defaultDay : DAYS_FULL[0]))
-  const [memberId, setMemberId] = useState(existing?.assigned_to || '')
-  const [isUrgent, setIsUrgent] = useState(existing?.is_urgent || false)
-  const [amount,   setAmount]   = useState(existing?.amount || '')
-  const [saving,   setSaving]   = useState(false)
+  const isEdit = !!(existing || existingMonthly)
+
+  const [frequency,  setFrequency]  = useState(existingMonthly ? 'monthly' : 'weekly')
+  const [text,       setText]       = useState(existing?.text || existingMonthly?.text || '')
+  const [day,        setDay]        = useState(existing ? (existing.day_of_week ?? null) : (defaultDay !== undefined ? defaultDay : DAYS_FULL[0]))
+  const [dayOfMonth, setDayOfMonth] = useState(existingMonthly?.day_of_month || defaultDayOfMonth || new Date().getDate())
+  const [memberId,   setMemberId]   = useState(existing?.assigned_to || existingMonthly?.assigned_to || '')
+  const [isUrgent,   setIsUrgent]   = useState(existing?.is_urgent || existingMonthly?.is_urgent || false)
+  const [amount,     setAmount]     = useState(existing?.amount || existingMonthly?.amount || '')
+  const [saving,     setSaving]     = useState(false)
 
   async function save() {
     if (!text.trim()) return
     setSaving(true)
-    const payload = {
-      family_id: familyId,
-      text: text.trim(),
-      day_of_week: day,
-      week_start: weekStart,
-      assigned_to: memberId || null,
-      is_urgent: isUrgent,
-      amount: amount ? parseFloat(amount) : null,
-      is_done: false,
-      created_by: sessionUserId,
+    if (frequency === 'monthly') {
+      const payload = { family_id: familyId, text: text.trim(), day_of_month: parseInt(dayOfMonth), assigned_to: memberId || null, is_urgent: isUrgent, amount: amount ? parseFloat(amount) : null, is_active: true }
+      existingMonthly
+        ? await supabase.from('monthly_tasks').update(payload).eq('id', existingMonthly.id)
+        : await supabase.from('monthly_tasks').insert(payload)
+    } else {
+      const payload = { family_id: familyId, text: text.trim(), day_of_week: day, week_start: weekStart, assigned_to: memberId || null, is_urgent: isUrgent, amount: amount ? parseFloat(amount) : null, is_done: false, created_by: sessionUserId }
+      existing
+        ? await supabase.from('tasks').update(payload).eq('id', existing.id)
+        : await supabase.from('tasks').insert(payload)
     }
-    existing
-      ? await supabase.from('tasks').update(payload).eq('id', existing.id)
-      : await supabase.from('tasks').insert(payload)
     onSaved()
   }
 
   async function del() {
-    await supabase.from('tasks').delete().eq('id', existing.id)
+    existingMonthly
+      ? await supabase.from('monthly_tasks').delete().eq('id', existingMonthly.id)
+      : await supabase.from('tasks').delete().eq('id', existing.id)
     onSaved()
   }
 
@@ -858,50 +861,47 @@ function TabletTaskModal({ existing, defaultDay, familyId, members, sessionUserI
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20, padding: 28, width: 460, maxWidth: '90vw' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{existing ? 'Editar' : 'Nova'} tasca</h3>
-          {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+          <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{isEdit ? 'Editar' : 'Nova'} tasca</h3>
+          {isEdit && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
         </div>
 
-        {/* Day selector */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
-          {DAYS_FULL.map((d, i) => (
-            <button
-              key={d}
-              onClick={() => setDay(d)}
-              style={{
-                padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
-                background: day === d ? 'var(--accent)' : 'var(--surface)',
-                color: day === d ? '#fff' : 'var(--text)',
-              }}
-            >{DAYS_SHORT[i]}</button>
-          ))}
-          <button
-            onClick={() => setDay(null)}
-            style={{
-              padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: '1px dashed var(--accent)', cursor: 'pointer',
-              background: day === null ? 'var(--accent)' : 'transparent',
-              color: day === null ? '#fff' : 'var(--accent)',
-            }}
-          >🎲 Imprevistos</button>
-        </div>
+        {/* Frequency toggle – only when creating new */}
+        {!isEdit ? (
+          <div style={{ display: 'flex', gap: 3, marginBottom: 14, background: 'var(--surface)', borderRadius: 10, padding: 3 }}>
+            {[['weekly','📅 Setmanal'],['monthly','🔄 Mensual']].map(([val, label]) => (
+              <button key={val} onClick={() => setFrequency(val)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: frequency === val ? 'var(--accent)' : 'transparent', color: frequency === val ? '#fff' : 'var(--muted)', transition: 'all .15s' }}>{label}</button>
+            ))}
+          </div>
+        ) : existingMonthly ? (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--accent-dim)', borderRadius: 8, padding: '4px 10px', marginBottom: 14, fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>🔄 Tasca mensual</div>
+        ) : null}
+
+        {/* Day selector (weekly) */}
+        {frequency === 'weekly' && (
+          <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+            {DAYS_FULL.map((d, i) => (
+              <button key={d} onClick={() => setDay(d)} style={{ padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: day === d ? 'var(--accent)' : 'var(--surface)', color: day === d ? '#fff' : 'var(--text)' }}>{DAYS_SHORT[i]}</button>
+            ))}
+            <button onClick={() => setDay(null)} style={{ padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, border: '1px dashed var(--accent)', cursor: 'pointer', background: day === null ? 'var(--accent)' : 'transparent', color: day === null ? '#fff' : 'var(--accent)' }}>🎲 Imprevistos</button>
+          </div>
+        )}
+
+        {/* Day-of-month selector (monthly) */}
+        {frequency === 'monthly' && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Dia del mes</div>
+            <input className="inp" type="number" min="1" max="31" value={dayOfMonth} onChange={e => setDayOfMonth(e.target.value)} style={{ width: 100 }} />
+          </div>
+        )}
 
         <input className="inp" placeholder="Descripció de la tasca *" value={text} onChange={e => setText(e.target.value)} style={{ marginBottom: 10 }} />
-
         <input className="inp" type="number" placeholder="Import (opcional)" value={amount} onChange={e => setAmount(e.target.value)} style={{ marginBottom: 10 }} />
 
         {/* Member picker */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <div
-            onClick={() => setMemberId('')}
-            style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}
-          >👨‍👩‍👧</div>
+          <div onClick={() => setMemberId('')} style={{ width: 36, height: 36, borderRadius: '50%', background: !memberId ? 'var(--accent)' : 'var(--surface)', border: `2px solid ${!memberId ? 'var(--accent)' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 16 }}>👨‍👩‍👧</div>
           {members.map(m => (
-            <div
-              key={m.id}
-              onClick={() => setMemberId(m.id)}
-              style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }}
-              title={m.name}
-            >{m.name[0].toUpperCase()}</div>
+            <div key={m.id} onClick={() => setMemberId(m.id)} style={{ width: 36, height: 36, borderRadius: '50%', background: memberId === m.id ? m.avatar_color : 'var(--surface)', border: `2px solid ${memberId === m.id ? m.avatar_color : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: '#fff', transition: 'all .15s' }} title={m.name}>{m.name[0].toUpperCase()}</div>
           ))}
         </div>
 
@@ -914,7 +914,7 @@ function TabletTaskModal({ existing, defaultDay, familyId, members, sessionUserI
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-primary" onClick={save} disabled={saving || !text.trim()} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? <Spinner size={16} color="#fff" /> : existing ? '💾 Guardar' : '+ Crear'}
+            {saving ? <Spinner size={16} color="#fff" /> : isEdit ? '💾 Guardar' : '+ Crear'}
           </button>
           <button className="btn-ghost" onClick={onClose}>Cancel·lar</button>
         </div>
@@ -926,67 +926,107 @@ function TabletTaskModal({ existing, defaultDay, familyId, members, sessionUserI
 // ── Tasks panel ────────────────────────────────────────────────────────────────
 function TasksPanel({ familyId, members, sessionUserId, paneId }) {
   const weekStart = getWeekStart()
-  const [tasks,  setTasks]  = useState([])
-  const [modal,  setModal]  = useState(null) // { day } | { existing }
+  const currentYearMonth = useMemo(() => {
+    const n = new Date()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
+  }, [])
+
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart + 'T12:00:00')
+    d.setDate(d.getDate() + i)
+    return d
+  }), [weekStart])
+
+  const [tasks,              setTasks]              = useState([])
+  const [monthlyTasks,       setMonthlyTasks]       = useState([])
+  const [monthlyCompletions, setMonthlyCompletions] = useState([])
+  const [modal, setModal] = useState(null)
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('tasks')
-      .select('*, family_members(name,avatar_color)')
-      .eq('family_id', familyId)
-      .eq('week_start', weekStart)
-      .order('is_urgent', { ascending: false })
-    setTasks(data || [])
-  }, [familyId, weekStart])
+    const [weeklyRes, monthlyRes, completionsRes] = await Promise.all([
+      supabase.from('tasks').select('*, family_members(name,avatar_color)').eq('family_id', familyId).eq('week_start', weekStart).order('is_urgent', { ascending: false }),
+      supabase.from('monthly_tasks').select('*, family_members(name,avatar_color)').eq('family_id', familyId).eq('is_active', true),
+      supabase.from('monthly_task_completions').select('*').eq('year_month', currentYearMonth),
+    ])
+    const myIds = new Set((monthlyRes.data || []).map(t => t.id))
+    setTasks(weeklyRes.data || [])
+    setMonthlyTasks(monthlyRes.data || [])
+    setMonthlyCompletions((completionsRes.data || []).filter(c => myIds.has(c.task_id)))
+  }, [familyId, weekStart, currentYearMonth])
 
   useEffect(() => {
     load()
     const ch = supabase.channel(`hub-tasks-${paneId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `family_id=eq.${familyId}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks',                   filter: `family_id=eq.${familyId}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'monthly_tasks',            filter: `family_id=eq.${familyId}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'monthly_task_completions'                                     }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [load, familyId])
 
   async function toggleDone(task) {
-    await supabase.from('tasks').update({ is_done: !task.is_done }).eq('id', task.id)
+    if (task._isMonthly) {
+      task._completionId
+        ? await supabase.from('monthly_task_completions').delete().eq('id', task._completionId)
+        : await supabase.from('monthly_task_completions').insert({ task_id: task._realId, year_month: currentYearMonth })
+    } else {
+      await supabase.from('tasks').update({ is_done: !task.is_done }).eq('id', task.id)
+    }
     load()
   }
 
+  // Monthly tasks that fall in the current week, merged with completion state
+  const monthlyThisWeek = useMemo(() =>
+    monthlyTasks.flatMap(mt => {
+      for (let i = 0; i < 7; i++) {
+        if (weekDates[i].getDate() === mt.day_of_month) {
+          const completion = monthlyCompletions.find(c => c.task_id === mt.id)
+          return [{ ...mt, id: `monthly_${mt.id}`, _realId: mt.id, _template: mt, _isMonthly: true, _completionId: completion?.id || null, is_done: !!completion, day_of_week: DAYS_FULL[i] }]
+        }
+      }
+      return []
+    }), [monthlyTasks, monthlyCompletions, weekDates])
+
   const FAMILY_COLOR = '#FF6B35'
   const ALL_ROWS = [
-    ...DAYS_FULL.map((d, i) => ({ key: d, label: DAYS_SHORT[i], isExtra: false })),
-    { key: null, label: '?', isExtra: true },
+    ...DAYS_FULL.map((d, i) => ({ key: d, label: DAYS_SHORT[i], isExtra: false, dateNum: weekDates[i].getDate() })),
+    { key: null, label: '?', isExtra: true, dateNum: null },
   ]
 
-  const byDay = ALL_ROWS.reduce((acc, { key }) => {
-    acc[key] = tasks.filter(t => (key === null ? !t.day_of_week : t.day_of_week === key))
+  const byDay = useMemo(() => ALL_ROWS.reduce((acc, { key }) => {
+    const weekly  = tasks.filter(t => key === null ? !t.day_of_week : t.day_of_week === key)
+    const monthly = key !== null ? monthlyThisWeek.filter(t => t.day_of_week === key) : []
+    acc[key] = [...weekly, ...monthly]
     return acc
-  }, {})
+  }, {}), [tasks, monthlyThisWeek]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function cardBg(task) {
     if (task.is_done) return '#00C9A722'
+    if (task._isMonthly) return '#FF6B3518'
     const color = task.family_members?.avatar_color || FAMILY_COLOR
     return color + '28'
   }
   function cardBorder(task) {
     if (task.is_done) return '#00C9A750'
+    if (task._isMonthly) return '#FF6B3560'
     const color = task.family_members?.avatar_color || FAMILY_COLOR
     return color + '70'
   }
 
   return (
     <Panel title="Tasques" accent="setmanals" icon="✅" noScroll style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* 8-row layout: 7 days + imprevistos */}
       <div style={{ display: 'grid', gridTemplateRows: 'repeat(8, minmax(48px, 1fr))', gap: 4, height: '100%', overflowY: 'auto' }}>
-        {ALL_ROWS.map(({ key, label, isExtra }) => {
+        {ALL_ROWS.map(({ key, label, isExtra, dateNum }) => {
           const dayTasks = byDay[key] || []
           const pending  = dayTasks.filter(t => !t.is_done).length
           return (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, background: isExtra ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 10, padding: '0 12px', overflow: 'hidden', border: isExtra ? '1px dashed var(--accent)' : 'none' }}>
+            <div key={String(key)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: isExtra ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 10, padding: '0 12px', overflow: 'hidden', border: isExtra ? '1px dashed var(--accent)' : 'none' }}>
               {/* Day label */}
               <div style={{ width: 40, flexShrink: 0, textAlign: 'center' }}>
                 <div style={{ fontSize: isExtra ? 10 : 13, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.05em', lineHeight: 1.2 }}>
                   {isExtra ? '🎲' : label}
                 </div>
+                {dateNum && <div style={{ fontSize: 10, color: 'var(--muted)', lineHeight: 1.2 }}>{dateNum}</div>}
                 {pending > 0 && (
                   <div style={{ background: 'var(--accent)', color: '#fff', borderRadius: 99, fontSize: 10, fontWeight: 700, padding: '1px 5px', marginTop: 2, display: 'inline-block' }}>{pending}</div>
                 )}
@@ -1004,22 +1044,19 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                   <div
                     key={task.id}
                     onClick={() => toggleDone(task)}
-                    style={{
-                      position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                      flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8,
-                      background: cardBg(task),
-                      border: `1.5px solid ${cardBorder(task)}`,
-                      cursor: 'pointer', userSelect: 'none',
-                    }}
+                    style={{ position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8, background: cardBg(task), border: `1.5px solid ${cardBorder(task)}`, cursor: 'pointer', userSelect: 'none' }}
                   >
                     {/* Edit button */}
                     <button
-                      onClick={e => { e.stopPropagation(); setModal({ existing: task }) }}
+                      onClick={e => { e.stopPropagation(); task._isMonthly ? setModal({ existingMonthly: task._template }) : setModal({ existing: task }) }}
                       style={{ position: 'absolute', top: 3, right: 3, background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--muted)', padding: 1, lineHeight: 1 }}
                     >✏️</button>
 
-                    {/* Urgent badge */}
-                    {task.is_urgent && <div style={{ fontSize: 10, lineHeight: 1, marginBottom: 2 }}>⚡</div>}
+                    {/* Badges */}
+                    <div style={{ display: 'flex', gap: 3, lineHeight: 1, marginBottom: 2 }}>
+                      {task.is_urgent   && <span style={{ fontSize: 10 }}>⚡</span>}
+                      {task._isMonthly  && <span style={{ fontSize: 10 }}>🔄</span>}
+                    </div>
 
                     {/* Task text */}
                     <div style={{ fontSize: 11, fontWeight: task.is_urgent ? 700 : 600, color: task.is_urgent ? 'var(--red)' : 'var(--text)', textDecoration: task.is_done ? 'line-through' : 'none', paddingRight: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1033,9 +1070,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                         : <div />
                       }
                       {task.family_members
-                        ? <div style={{ width: 20, height: 20, borderRadius: '50%', background: task.family_members.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>
-                            {(task.family_members?.name?.[0] || '?').toUpperCase()}
-                          </div>
+                        ? <div style={{ width: 20, height: 20, borderRadius: '50%', background: task.family_members.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>{(task.family_members?.name?.[0] || '?').toUpperCase()}</div>
                         : <div style={{ width: 20, height: 20, borderRadius: '50%', background: FAMILY_COLOR + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>👨‍👩‍👧</div>
                       }
                     </div>
@@ -1046,7 +1081,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
               {/* Add button */}
               <button
                 className="btn-ghost"
-                onClick={() => setModal({ day: key })}
+                onClick={() => setModal({ day: key, defaultDayOfMonth: dateNum })}
                 style={{ padding: '4px 10px', fontSize: 16, fontWeight: 700, borderRadius: 8, flexShrink: 0 }}
               >+</button>
             </div>
@@ -1057,7 +1092,9 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
       {modal && (
         <TabletTaskModal
           existing={modal.existing}
+          existingMonthly={modal.existingMonthly}
           defaultDay={modal.day}
+          defaultDayOfMonth={modal.defaultDayOfMonth}
           familyId={familyId}
           members={members}
           sessionUserId={sessionUserId}
@@ -1556,19 +1593,29 @@ export function DishesPanel({ familyId, paneId }) {
 
 // ── Subscription modal ─────────────────────────────────────────────────────────
 const SUB_CATEGORIES = ['Streaming','Música','Jocs','Software','Cloud','Fitness','Educació','Notícies','Altres']
+const MONTH_NAMES_CA = ['Gener','Febrer','Març','Abril','Maig','Juny','Juliol','Agost','Setembre','Octubre','Novembre','Desembre']
 
 function SubscriptionModal({ existing, familyId, onSaved, onClose }) {
-  const [name,       setName]       = useState(existing?.name || '')
-  const [emoji,      setEmoji]      = useState(existing?.emoji || '💳')
-  const [amount,     setAmount]     = useState(existing?.amount || '')
-  const [category,   setCategory]   = useState(existing?.category || 'Altres')
-  const [billingDay, setBillingDay] = useState(existing?.billing_day || 1)
-  const [saving,     setSaving]     = useState(false)
+  const [name,      setName]      = useState(existing?.name || '')
+  const [emoji,     setEmoji]     = useState(existing?.emoji || '💳')
+  const [amount,    setAmount]    = useState(existing?.amount || '')
+  const [category,  setCategory]  = useState(existing?.category || 'Altres')
+  const [billingDay,  setBillingDay]  = useState(existing?.billing_day || 1)
+  const [billingMonth, setBillingMonth] = useState(existing?.billing_month || 1)
+  const [frequency, setFrequency] = useState(existing?.billing_frequency || 'monthly')
+  const [saving,    setSaving]    = useState(false)
 
   async function save() {
     if (!name.trim() || !amount) return
     setSaving(true)
-    const payload = { family_id: familyId, name: name.trim(), emoji, amount: parseFloat(amount), category, billing_day: parseInt(billingDay), is_active: true }
+    const payload = {
+      family_id: familyId, name: name.trim(), emoji,
+      amount: parseFloat(amount), category,
+      billing_day: parseInt(billingDay),
+      billing_frequency: frequency,
+      billing_month: frequency === 'annual' ? parseInt(billingMonth) : null,
+      is_active: true,
+    }
     existing
       ? await supabase.from('subscriptions').update(payload).eq('id', existing.id)
       : await supabase.from('subscriptions').insert(payload)
@@ -1588,16 +1635,31 @@ function SubscriptionModal({ existing, familyId, onSaved, onClose }) {
           {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
         </div>
 
+        {/* Frequency toggle */}
+        <div style={{ display: 'flex', gap: 3, marginBottom: 14, background: 'var(--surface)', borderRadius: 10, padding: 3 }}>
+          {[['monthly','📅 Mensual'],['annual','📆 Anual']].map(([val, label]) => (
+            <button key={val} onClick={() => setFrequency(val)} style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: frequency === val ? 'var(--accent)' : 'transparent', color: frequency === val ? '#fff' : 'var(--muted)', transition: 'all .15s' }}>{label}</button>
+          ))}
+        </div>
+
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input className="inp" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
           <input className="inp" placeholder="Netflix, Spotify, Amazon..." value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: frequency === 'annual' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8, marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Import mensual (€)</div>
-            <input className="inp" type="number" step="0.01" placeholder="9.99" value={amount} onChange={e => setAmount(e.target.value)} />
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Import {frequency === 'annual' ? 'anual' : 'mensual'} (€)</div>
+            <input className="inp" type="number" step="0.01" placeholder={frequency === 'annual' ? '99.99' : '9.99'} value={amount} onChange={e => setAmount(e.target.value)} />
           </div>
+          {frequency === 'annual' && (
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Mes de cobrament</div>
+              <select className="inp" value={billingMonth} onChange={e => setBillingMonth(e.target.value)} style={{ cursor: 'pointer' }}>
+                {MONTH_NAMES_CA.map((mn, i) => <option key={i+1} value={i+1}>{mn}</option>)}
+              </select>
+            </div>
+          )}
           <div>
             <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 4 }}>Dia de cobrament</div>
             <input className="inp" type="number" min="1" max="31" value={billingDay} onChange={e => setBillingDay(e.target.value)} />
@@ -1754,9 +1816,12 @@ export function ExpensesPanel({ familyId, members, paneId }) {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
   }
 
-  const totalSubs     = subs.reduce((acc, x) => acc + parseFloat(x.amount), 0)
+  const totalSubsMonthly = subs.reduce((acc, x) => {
+    const freq = x.billing_frequency || 'monthly'
+    return acc + (freq === 'annual' ? parseFloat(x.amount) / 12 : parseFloat(x.amount))
+  }, 0)
   const totalExpenses = expenses.reduce((acc, x) => acc + parseFloat(x.amount), 0)
-  const totalMonth    = totalSubs + totalExpenses
+  const totalMonth    = totalSubsMonthly + totalExpenses
 
   return (
     <>
@@ -1765,9 +1830,9 @@ export function ExpensesPanel({ familyId, members, paneId }) {
         {/* Summary cards */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12, flexShrink: 0 }}>
           {[
-            { label: 'Subscripcions', value: totalSubs,     sub: 'al mes',      color: 'var(--accent)' },
-            { label: 'Compres',       value: totalExpenses, sub: monthLabel,    color: '#00C9A7' },
-            { label: 'Total mes',     value: totalMonth,    sub: `${(totalSubs * 12).toFixed(0)}€ / any`, color: 'var(--accent)', dim: true },
+            { label: 'Subscripcions', value: totalSubsMonthly, sub: 'equiv. mensual',  color: 'var(--accent)' },
+            { label: 'Compres',       value: totalExpenses,    sub: monthLabel,        color: '#00C9A7' },
+            { label: 'Total mes',     value: totalMonth,       sub: `${(totalSubsMonthly * 12).toFixed(0)}€ / any`, color: 'var(--accent)', dim: true },
           ].map(({ label, value, sub, color, dim }) => (
             <div key={label} style={{ background: dim ? 'var(--accent-dim)' : 'var(--surface)', borderRadius: 12, padding: '10px 12px', border: `1px solid ${dim ? 'var(--accent-glow)' : 'var(--border)'}` }}>
               <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>{label}</div>
@@ -1795,20 +1860,26 @@ export function ExpensesPanel({ familyId, members, paneId }) {
             </button>
             {subs.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--muted)', fontSize: 13 }}>Sense subscripcions. Afegeix-ne una!</div>
-            ) : subs.map(sub => (
-              <div key={sub.id} onClick={() => setModal({ type: 'sub', existing: sub })}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                <span style={{ fontSize: 26, flexShrink: 0 }}>{sub.emoji || '💳'}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{sub.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{sub.category} · dia {sub.billing_day}</div>
+            ) : subs.map(sub => {
+              const isAnnual = (sub.billing_frequency || 'monthly') === 'annual'
+              const billingLabel = isAnnual
+                ? `${MONTH_NAMES_CA[(sub.billing_month || 1) - 1]} · dia ${sub.billing_day}`
+                : `dia ${sub.billing_day}`
+              return (
+                <div key={sub.id} onClick={() => setModal({ type: 'sub', existing: sub })}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 26, flexShrink: 0 }}>{sub.emoji || '💳'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{sub.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{sub.category} · {billingLabel}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--accent)' }}>{parseFloat(sub.amount).toFixed(2)}€</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>{isAnnual ? '/ any' : 'al mes'}</div>
+                  </div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--accent)' }}>{parseFloat(sub.amount).toFixed(2)}€</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>al mes</div>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 

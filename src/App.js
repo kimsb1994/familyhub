@@ -239,7 +239,7 @@ function AppInner() {
     </div>
   )
 
-  if (!session || !member) return <AuthPage onAuth={() => window.location.reload()} existingUserId={session?.user?.id} />
+  if (!session || !member) return <AuthPage onAuth={() => window.location.reload()} existingUserId={session?.user?.id} emailConfirmed={!!session?.user?.email_confirmed_at} userEmail={session?.user?.email} />
 
   // TABLET — hub mode
   if (isTablet) return (

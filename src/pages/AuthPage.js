@@ -28,18 +28,26 @@ function GoogleButton({ onClick, loading, label }) {
   )
 }
 
-export default function AuthPage({ onAuth, existingUserId }) {
+export default function AuthPage({ onAuth, existingUserId, emailConfirmed, userEmail }) {
   const { t } = useTranslation()
-  const [mode,     setMode]     = useState(existingUserId ? 'create-family' : 'login')
-  const [email,    setEmail]    = useState('')
-  const [password, setPassword] = useState('')
-  const [name,     setName]     = useState('')
-  const [famName,  setFamName]  = useState('')
-  const [famCode,  setFamCode]  = useState('')
-  const [color,    setColor]    = useState(MEMBER_COLORS[0])
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
-  const [userId,   setUserId]   = useState(existingUserId || null)
+
+  let startMode = 'login'
+  if (existingUserId) {
+    startMode = emailConfirmed === false ? 'verify-email' : 'create-family'
+  }
+
+  const [mode,         setMode]         = useState(startMode)
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
+  const [name,         setName]         = useState('')
+  const [famName,      setFamName]      = useState('')
+  const [famCode,      setFamCode]      = useState('')
+  const [color,        setColor]        = useState(MEMBER_COLORS[0])
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState('')
+  const [userId,       setUserId]       = useState(existingUserId || null)
+  const [pendingEmail, setPendingEmail] = useState(userEmail || '')
+  const [resent,       setResent]       = useState(false)
 
   const err = (msg) => { setError(msg); setLoading(false) }
 
@@ -51,7 +59,6 @@ export default function AuthPage({ onAuth, existingUserId }) {
       options: { redirectTo: window.location.origin },
     })
     if (error) err(error.message)
-    // si no hay error el navegador redirige a Google — el código no continúa
   }
 
   // ── Step 1: authenticate ─────────────────────────────────
@@ -66,9 +73,23 @@ export default function AuthPage({ onAuth, existingUserId }) {
       const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) return err(error.message)
       setUserId(data.user.id)
-      setMode('create-family')
+      setPendingEmail(email)
+      if (data.user.email_confirmed_at) {
+        setMode('create-family')
+      } else {
+        setMode('verify-email')
+      }
       setLoading(false)
     }
+  }
+
+  // ── Resend verification email ────────────────────────────
+  async function handleResend() {
+    setLoading(true); setError(''); setResent(false)
+    const { error } = await supabase.auth.resend({ type: 'signup', email: pendingEmail })
+    if (error) return err(error.message)
+    setResent(true)
+    setLoading(false)
   }
 
   // ── Step 2a: create new family ───────────────────────────
@@ -162,6 +183,44 @@ export default function AuthPage({ onAuth, existingUserId }) {
               </button>
             </div>
           </form>
+        )}
+
+        {/* ── Verify email ── */}
+        {mode === 'verify-email' && (
+          <div className="card" style={{ padding: 24, textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
+            <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
+              Verifica el teu correu
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 6, lineHeight: 1.5 }}>
+              T'hem enviat un enllaç de verificació a:
+            </p>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)', marginBottom: 20, wordBreak: 'break-all' }}>
+              {pendingEmail}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 20, lineHeight: 1.5 }}>
+              Fes clic a l'enllaç del correu i torna aquí per continuar.
+            </p>
+
+            {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 10 }}>{error}</div>}
+            {resent && <div style={{ color: '#00C9A7', fontSize: 12, marginBottom: 10 }}>Correu reenviat!</div>}
+
+            <button
+              className="btn-primary"
+              onClick={() => window.location.reload()}
+              style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+            >
+              Ja l'he verificat
+            </button>
+            <button
+              className="btn-ghost"
+              onClick={handleResend}
+              disabled={loading}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              {loading ? 'Enviant...' : 'Reenviar correu'}
+            </button>
+          </div>
         )}
 
         {/* ── Create family ── */}

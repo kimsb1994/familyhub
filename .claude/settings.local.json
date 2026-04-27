@@ -17,7 +17,8 @@
       "mcp__supabase__list_edge_functions",
       "mcp__supabase__get_edge_function",
       "Bash(npx react-scripts *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\\\.\\(js|css\\)$\")"
     ]
   }
 }

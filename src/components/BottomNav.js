@@ -58,12 +58,14 @@ export default function BottomNav({ current, onChange, badges = {} }) {
     <nav style={{
       position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
       width: '100%', maxWidth: 480,
-      background: 'var(--surface)EE', backdropFilter: 'blur(20px)',
+      background: 'rgba(22, 22, 30, 0.92)',
+      WebkitBackdropFilter: 'blur(20px)', backdropFilter: 'blur(20px)',
       borderTop: '1px solid var(--border)',
       paddingTop: 8, paddingLeft: 4, paddingRight: 4,
-      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+      paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
       display: 'flex', justifyContent: 'flex-start', alignItems: 'center',
       overflowX: 'auto', overflowY: 'hidden',
+      WebkitOverflowScrolling: 'touch',
       scrollbarWidth: 'none',
       zIndex: 100,
     }}>

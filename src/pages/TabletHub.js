@@ -830,19 +830,18 @@ function TabletTaskModal({ existing, existingMonthly, defaultDay, defaultDayOfMo
   const [dayOfMonth, setDayOfMonth] = useState(existingMonthly?.day_of_month || defaultDayOfMonth || new Date().getDate())
   const [memberId,   setMemberId]   = useState(existing?.assigned_to || existingMonthly?.assigned_to || '')
   const [isUrgent,   setIsUrgent]   = useState(existing?.is_urgent || existingMonthly?.is_urgent || false)
-  const [amount,     setAmount]     = useState(existing?.amount || existingMonthly?.amount || '')
   const [saving,     setSaving]     = useState(false)
 
   async function save() {
     if (!text.trim()) return
     setSaving(true)
     if (frequency === 'monthly') {
-      const payload = { family_id: familyId, text: text.trim(), day_of_month: parseInt(dayOfMonth), assigned_to: memberId || null, is_urgent: isUrgent, amount: amount ? parseFloat(amount) : null, is_active: true }
+      const payload = { family_id: familyId, text: text.trim(), day_of_month: parseInt(dayOfMonth), assigned_to: memberId || null, is_urgent: isUrgent, is_active: true }
       existingMonthly
         ? await supabase.from('monthly_tasks').update(payload).eq('id', existingMonthly.id)
         : await supabase.from('monthly_tasks').insert(payload)
     } else {
-      const payload = { family_id: familyId, text: text.trim(), day_of_week: day, week_start: weekStart, assigned_to: memberId || null, is_urgent: isUrgent, amount: amount ? parseFloat(amount) : null, is_done: false, created_by: sessionUserId }
+      const payload = { family_id: familyId, text: text.trim(), day_of_week: day, week_start: weekStart, assigned_to: memberId || null, is_urgent: isUrgent, is_done: false, created_by: sessionUserId }
       existing
         ? await supabase.from('tasks').update(payload).eq('id', existing.id)
         : await supabase.from('tasks').insert(payload)
@@ -895,7 +894,6 @@ function TabletTaskModal({ existing, existingMonthly, defaultDay, defaultDayOfMo
         )}
 
         <input className="inp" placeholder="Descripció de la tasca *" value={text} onChange={e => setText(e.target.value)} style={{ marginBottom: 10 }} />
-        <input className="inp" type="number" placeholder="Import (opcional)" value={amount} onChange={e => setAmount(e.target.value)} style={{ marginBottom: 10 }} />
 
         {/* Member picker */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -998,7 +996,7 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
     const monthly = key !== null ? monthlyThisWeek.filter(t => t.day_of_week === key) : []
     acc[key] = [...weekly, ...monthly]
     return acc
-  }, {}), [tasks, monthlyThisWeek]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, {}), [tasks, monthlyThisWeek])
 
   function cardBg(task) {
     if (task.is_done) return '#00C9A722'
@@ -1063,12 +1061,8 @@ function TasksPanel({ familyId, members, sessionUserId, paneId }) {
                       {task.text}
                     </div>
 
-                    {/* Bottom row: amount + avatar */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 }}>
-                      {task.amount
-                        ? <div style={{ fontSize: 10, color: 'var(--muted)' }}>{task.amount}€</div>
-                        : <div />
-                      }
+                    {/* Bottom row: avatar */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 3 }}>
                       {task.family_members
                         ? <div style={{ width: 20, height: 20, borderRadius: '50%', background: task.family_members.avatar_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff' }}>{(task.family_members?.name?.[0] || '?').toUpperCase()}</div>
                         : <div style={{ width: 20, height: 20, borderRadius: '50%', background: FAMILY_COLOR + '40', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>👨‍👩‍👧</div>

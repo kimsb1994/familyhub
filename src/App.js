@@ -45,7 +45,7 @@ function GCalCallback() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:16, fontFamily:'DM Sans, sans-serif' }}>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'var(--app-height, 100vh)', gap:16, fontFamily:'DM Sans, sans-serif' }}>
       <div style={{ fontSize:40 }}>📅</div>
       <div style={{ fontSize:15, color: status === 'error' ? '#F43F5E' : 'var(--text)' }}>{msgs[status]}</div>
       {status === 'loading' && (
@@ -178,6 +178,19 @@ function AppInner() {
   const { isInstalled, installPrompt, isOnline, promptInstall, requestNotifications } = usePWA()
   const isTablet = useIsTablet()
   const [view,        setView]        = useState(() => new URLSearchParams(window.location.search).get('view') || 'home')
+
+  // Fix iOS viewport height: 100dvh not supported on iOS < 15.4
+  useEffect(() => {
+    const setH = () =>
+      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)
+    setH()
+    window.addEventListener('resize', setH)
+    window.addEventListener('orientationchange', setH)
+    return () => {
+      window.removeEventListener('resize', setH)
+      window.removeEventListener('orientationchange', setH)
+    }
+  }, [])
   const [members,     setMembers]     = useState([])
   const [badges,      setBadges]      = useState({})
   const [showInstall, setShowInstall] = useState(false)
@@ -230,7 +243,7 @@ function AppInner() {
   useEffect(() => { loadMembers(); loadBadges() }, [loadMembers, loadBadges])
 
   if (loading) return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:16 }}>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'var(--app-height, 100vh)', gap:16 }}>
       <div style={{ fontSize:52 }}>🏡</div>
       <h1 style={{ fontFamily:'Fraunces, serif', fontSize:28, fontWeight:700, letterSpacing:'-.03em' }}>
         Family<span style={{ color:'var(--accent)', fontStyle:'italic' }}>Hub</span>
@@ -251,10 +264,10 @@ function AppInner() {
 
   // MOBILE
   return (
-    <div style={{ width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100dvh', background:'var(--bg)', display:'grid', gridTemplateRows:'1fr' }}>
+    <div style={{ width:'100%', maxWidth:480, margin:'0 auto', minHeight:'var(--app-height, 100vh)', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
       {!isOnline && <OfflineBanner />}
 
-      <div style={{ overflowY:'auto', paddingBottom:'calc(84px + max(0px, env(safe-area-inset-bottom, 0px) - 16px))', display:'grid', gridTemplateRows:'1fr' }}>
+      <div style={{ flex: 1, overflowY:'auto', WebkitOverflowScrolling:'touch', paddingBottom:'calc(84px + env(safe-area-inset-bottom, 0px))' }}>
         {view === 'home'     && <Dashboard    members={members} onNavigate={setView} />}
         {view === 'calendar' && <CalendarPage members={members} />}
         {view === 'menu'     && <MenuPage />}

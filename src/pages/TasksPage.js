@@ -13,7 +13,6 @@ function TaskModal({ existing, defaultDay, weekStart, familyId, members, session
   const [dayOfWeek,  setDayOfWeek]  = useState(existing?.day_of_week || defaultDay || DAYS_FULL[0])
   const [assignedTo, setAssignedTo] = useState(existing?.assigned_to || '')
   const [isUrgent,   setIsUrgent]   = useState(existing?.is_urgent   || false)
-  const [amount,     setAmount]     = useState(existing?.amount       || '')
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
 
@@ -22,7 +21,6 @@ function TaskModal({ existing, defaultDay, weekStart, familyId, members, session
     setSaving(true); setError('')
     const payload = {
       family_id: familyId, text: text.trim(), is_urgent: isUrgent,
-      amount: amount ? parseFloat(amount) : null,
       assigned_to: assignedTo || null,
       day_of_week: dayOfWeek,
       week_start: weekStart,
@@ -116,20 +114,15 @@ function TaskModal({ existing, defaultDay, weekStart, familyId, members, session
           </div>
         )}
 
-        {/* Urgent + Amount */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-          <div
-            onClick={() => setIsUrgent(p => !p)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, background: 'var(--red-dim)', border: '1px solid #FF446630', cursor: 'pointer' }}
-          >
-            <div className={`checkbox ${isUrgent ? 'red' : ''}`}>
-              {isUrgent && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--red)' }}>⚡ {t('tasks.urgent_label')}</span>
+        {/* Urgent */}
+        <div
+          onClick={() => setIsUrgent(p => !p)}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 10, background: 'var(--red-dim)', border: '1px solid #FF446630', cursor: 'pointer', marginBottom: 14 }}
+        >
+          <div className={`checkbox ${isUrgent ? 'red' : ''}`}>
+            {isUrgent && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
           </div>
-          <div>
-            <input className="inp" type="number" placeholder="€ import" value={amount} onChange={e => setAmount(e.target.value)} />
-          </div>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--red)' }}>⚡ {t('tasks.urgent_label')}</span>
         </div>
 
         {error && <div style={{ color: 'var(--red)', fontSize: 12, marginBottom: 8 }}>{error}</div>}

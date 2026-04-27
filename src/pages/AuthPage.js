@@ -75,30 +75,30 @@ export default function AuthPage({ onAuth, existingUserId }) {
   async function handleCreateFamily(e) {
     e.preventDefault()
     setLoading(true); setError('')
-    const { data: fam, error: famErr } = await supabase.from('families').insert({ name: famName }).select().single()
-    if (famErr) return err(famErr.message)
-    const { error: memErr } = await supabase.from('family_members').insert({
-      family_id: fam.id, user_id: userId,
-      name, avatar_color: color, role: 'admin'
+    const { error: rpcErr } = await supabase.rpc('create_family_with_member', {
+      p_family_name:  famName,
+      p_member_name:  name,
+      p_user_id:      userId,
+      p_avatar_color: color,
     })
-    if (memErr) return err(memErr.message)
-    const { data: session } = await supabase.auth.getSession()
-    onAuth(session.session)
+    if (rpcErr) return err(rpcErr.message)
+    const { data: sessionData } = await supabase.auth.getSession()
+    onAuth(sessionData.session)
   }
 
   // ── Step 2b: join existing family ───────────────────────
   async function handleJoinFamily(e) {
     e.preventDefault()
     setLoading(true); setError('')
-    const { data: fam, error: famErr } = await supabase.from('families').select().eq('id', famCode.trim()).single()
-    if (famErr || !fam) return err('Codi de família no trobat')
-    const { error: memErr } = await supabase.from('family_members').insert({
-      family_id: fam.id, user_id: userId,
-      name, avatar_color: color, role: 'member'
+    const { error: rpcErr } = await supabase.rpc('join_family_as_member', {
+      p_family_id:    famCode.trim(),
+      p_member_name:  name,
+      p_user_id:      userId,
+      p_avatar_color: color,
     })
-    if (memErr) return err(memErr.message)
-    const { data: session } = await supabase.auth.getSession()
-    onAuth(session.session)
+    if (rpcErr) return err(rpcErr.message)
+    const { data: sessionData } = await supabase.auth.getSession()
+    onAuth(sessionData.session)
   }
 
   const inp = (value, onChange, placeholder, type = 'text') => (

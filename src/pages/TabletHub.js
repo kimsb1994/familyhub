@@ -690,7 +690,7 @@ function ShoppingPanel({ familyId, paneId }) {
 }
 
 // ── Events panel ───────────────────────────────────────────────────────────────
-function EventsPanel({ familyId, members, sessionUserId, paneId }) {
+export function EventsPanel({ familyId, members, sessionUserId, paneId }) {
   const [events,     setEvents]     = useState([])
   const [modal,      setModal]      = useState(null)
   const [midnightKey, setMidnightKey] = useState(0)
@@ -1321,7 +1321,7 @@ function TabletCalendar({ familyId, members, sessionUserId, paneId }) {
 }
 
 // ── Settings panel ─────────────────────────────────────────────────────────────
-function SettingsPanel({ members }) {
+export function SettingsPanel({ members }) {
   const { reload } = useAuth()
   return (
     <div style={{ height: '100%', overflowY: 'auto', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 18 }}>
@@ -1480,7 +1480,7 @@ function TabletDishLibraryModal({ existing, familyId, onSaved, onClose }) {
 }
 
 // ── Dishes panel ───────────────────────────────────────────────────────────────
-function DishesPanel({ familyId, paneId }) {
+export function DishesPanel({ familyId, paneId }) {
   const [dishes,  setDishes]  = useState([])
   const [search,  setSearch]  = useState('')
   const [loading, setLoading] = useState(true)
@@ -1716,7 +1716,7 @@ function ExpenseModal({ existing, familyId, members, onSaved, onClose }) {
 }
 
 // ── Expenses panel ─────────────────────────────────────────────────────────────
-function ExpensesPanel({ familyId, members, paneId }) {
+export function ExpensesPanel({ familyId, members, paneId }) {
   const [subs,     setSubs]     = useState([])
   const [expenses, setExpenses] = useState([])
   const [tab,      setTab]      = useState('subs')

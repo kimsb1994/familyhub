@@ -62,7 +62,7 @@ import MenuPage     from './pages/MenuPage'
 import ShoppingPage from './pages/ShoppingPage'
 import TasksPage    from './pages/TasksPage'
 import ProfilePage  from './pages/ProfilePage'
-import TabletHub    from './pages/TabletHub'
+import TabletHub, { DishesPanel, ExpensesPanel, EventsPanel } from './pages/TabletHub'
 import BottomNav    from './components/BottomNav'
 
 import { LanguageProvider, useTranslation } from './lib/i18n'
@@ -258,8 +258,11 @@ function AppInner() {
         {view === 'home'     && <Dashboard    members={members} onNavigate={setView} />}
         {view === 'calendar' && <CalendarPage members={members} />}
         {view === 'menu'     && <MenuPage />}
+        {view === 'dishes'   && <DishesPanel   familyId={family.id} paneId="mobile" />}
         {view === 'shopping' && <ShoppingPage onNavigate={setView} />}
+        {view === 'expenses' && <ExpensesPanel familyId={family.id} members={members} paneId="mobile" />}
         {view === 'tasks'    && <TasksPage    members={members} />}
+        {view === 'events'   && <EventsPanel   familyId={family.id} members={members} sessionUserId={session?.user?.id} paneId="mobile" />}
         {view === 'profile'  && <ProfilePage  members={members} onMembersChange={loadMembers} />}
       </div>
 

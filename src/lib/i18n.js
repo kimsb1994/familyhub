@@ -30,8 +30,11 @@ const T = {
     'nav.home':     'Inici',
     'nav.calendar': 'Calendari',
     'nav.menu':     'Menú',
+    'nav.dishes':   'Plats',
     'nav.shopping': 'Compra',
+    'nav.expenses': 'Gastos',
     'nav.tasks':    'Tasques',
+    'nav.events':   'Events',
     'nav.profile':  'Família',
 
     // Auth
@@ -285,8 +288,11 @@ const T = {
     'nav.home':     'Inicio',
     'nav.calendar': 'Calendario',
     'nav.menu':     'Menú',
+    'nav.dishes':   'Platos',
     'nav.shopping': 'Compra',
+    'nav.expenses': 'Gastos',
     'nav.tasks':    'Tareas',
+    'nav.events':   'Eventos',
     'nav.profile':  'Familia',
 
     'auth.login':           'Iniciar sesión',
@@ -527,8 +533,11 @@ const T = {
     'nav.home':     'Home',
     'nav.calendar': 'Calendar',
     'nav.menu':     'Menu',
+    'nav.dishes':   'Dishes',
     'nav.shopping': 'Shopping',
+    'nav.expenses': 'Expenses',
     'nav.tasks':    'Tasks',
+    'nav.events':   'Events',
     'nav.profile':  'Family',
 
     'auth.login':           'Sign in',

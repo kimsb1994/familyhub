@@ -129,7 +129,7 @@ function TabletMealModal({ existing, mealType, familyId, dayName, weekStart, mem
           {/* Name + emoji */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
-            <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+            <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} />
           </div>
 
           {/* Time + difficulty */}
@@ -1434,7 +1434,7 @@ function TabletDishLibraryModal({ existing, familyId, onSaved, onClose }) {
             {/* Name + emoji */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <input className="inp" placeholder="🍝" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
-              <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+              <input className="inp" placeholder="Nom del plat *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} />
             </div>
 
             {/* Time + difficulty */}
@@ -1638,7 +1638,7 @@ function SubscriptionModal({ existing, familyId, onSaved, onClose }) {
 
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input className="inp" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
-          <input className="inp" placeholder="Netflix, Spotify, Amazon..." value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+          <input className="inp" placeholder="Netflix, Spotify, Amazon..." value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: frequency === 'annual' ? '1fr 1fr 1fr' : '1fr 1fr', gap: 8, marginBottom: 14 }}>
@@ -1719,7 +1719,7 @@ function ExpenseModal({ existing, familyId, members, onSaved, onClose }) {
         <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <input className="inp" value={emoji} onChange={e => setEmoji(e.target.value)} style={{ width: 64, textAlign: 'center', fontSize: 22, flexShrink: 0 }} />
-            <input className="inp" placeholder="Nom de la despesa *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} autoFocus />
+            <input className="inp" placeholder="Nom de la despesa *" value={name} onChange={e => setName(e.target.value)} style={{ flex: 1 }} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>

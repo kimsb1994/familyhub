@@ -1,5 +1,5 @@
 // src/pages/TasksPage.js
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { Avatar, PageHeader, Spinner } from '../components/ui'
@@ -7,34 +7,42 @@ import { useTranslation } from '../lib/i18n'
 import { DAYS_SHORT, DAYS_FULL, getWeekStart } from '../lib/constants'
 
 // ── Task modal ────────────────────────────────────────────────────────────────
-function TaskModal({ existing, defaultDay, weekStart, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
+function TaskModal({ existing, existingMonthly, defaultDay, weekStart, familyId, members, sessionUserId, onSaved, onDeleted, onClose }) {
   const { t } = useTranslation()
-  const [text,       setText]       = useState(existing?.text        || '')
+  const isEdit = !!(existing || existingMonthly)
+
+  const [frequency,  setFrequency]  = useState(existingMonthly ? 'monthly' : 'weekly')
+  const [text,       setText]       = useState(existing?.text || existingMonthly?.text || '')
   const [dayOfWeek,  setDayOfWeek]  = useState(existing?.day_of_week || defaultDay || DAYS_FULL[0])
-  const [assignedTo, setAssignedTo] = useState(existing?.assigned_to || '')
-  const [isUrgent,   setIsUrgent]   = useState(existing?.is_urgent   || false)
+  const [dayOfMonth, setDayOfMonth] = useState(existingMonthly?.day_of_month || new Date().getDate())
+  const [assignedTo, setAssignedTo] = useState(existing?.assigned_to || existingMonthly?.assigned_to || '')
+  const [isUrgent,   setIsUrgent]   = useState(existing?.is_urgent || existingMonthly?.is_urgent || false)
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
 
   async function save() {
     if (!text.trim()) return
     setSaving(true); setError('')
-    const payload = {
-      family_id: familyId, text: text.trim(), is_urgent: isUrgent,
-      assigned_to: assignedTo || null,
-      day_of_week: dayOfWeek,
-      week_start: weekStart,
-      created_by: sessionUserId,
+    if (frequency === 'monthly') {
+      const payload = { family_id: familyId, text: text.trim(), day_of_month: parseInt(dayOfMonth), assigned_to: assignedTo || null, is_urgent: isUrgent, is_active: true }
+      const { error: e } = existingMonthly
+        ? await supabase.from('monthly_tasks').update(payload).eq('id', existingMonthly.id)
+        : await supabase.from('monthly_tasks').insert(payload)
+      if (e) { setError(e.message); setSaving(false); return }
+    } else {
+      const payload = { family_id: familyId, text: text.trim(), is_urgent: isUrgent, assigned_to: assignedTo || null, day_of_week: dayOfWeek, week_start: weekStart, is_done: false, created_by: sessionUserId }
+      const { error: e } = existing
+        ? await supabase.from('tasks').update(payload).eq('id', existing.id)
+        : await supabase.from('tasks').insert(payload)
+      if (e) { setError(e.message); setSaving(false); return }
     }
-    const { error: e } = existing
-      ? await supabase.from('tasks').update(payload).eq('id', existing.id)
-      : await supabase.from('tasks').insert(payload)
-    if (e) { setError(e.message); setSaving(false); return }
     onSaved(); onClose()
   }
 
   async function del() {
-    await supabase.from('tasks').delete().eq('id', existing.id)
+    existingMonthly
+      ? await supabase.from('monthly_tasks').delete().eq('id', existingMonthly.id)
+      : await supabase.from('tasks').delete().eq('id', existing.id)
     onDeleted(); onClose()
   }
 
@@ -44,32 +52,59 @@ function TaskModal({ existing, defaultDay, weekStart, familyId, members, session
         <div className="modal-drag" />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>
-            {existing ? t('tasks.edit_task') : t('tasks.new_task')}
+            {isEdit ? t('tasks.edit_task') : t('tasks.new_task')}
           </h3>
-          {existing && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
+          {isEdit && <button className="btn-icon" onClick={del} style={{ color: 'var(--red)' }}>🗑</button>}
         </div>
 
-        {/* Day selector */}
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>{t('tasks.day')}</div>
-          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-            {DAYS_FULL.map((d, i) => (
+        {/* Frequency toggle – only when creating */}
+        {!isEdit ? (
+          <div style={{ display: 'flex', gap: 3, marginBottom: 14, background: 'var(--surface)', borderRadius: 10, padding: 3 }}>
+            {[['weekly', `📅 ${t('tasks.freq_weekly')}`], ['monthly', `🔄 ${t('tasks.freq_monthly')}`]].map(([val, label]) => (
               <button
-                key={d}
-                onClick={() => setDayOfWeek(d)}
-                style={{
-                  padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
-                  background: dayOfWeek === d ? 'var(--accent)' : 'var(--border)',
-                  color: dayOfWeek === d ? '#fff' : 'var(--muted)',
-                  transition: 'all .15s',
-                }}
-              >
-                {DAYS_SHORT[i]}
-              </button>
+                key={val}
+                onClick={() => setFrequency(val)}
+                style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: frequency === val ? 'var(--accent)' : 'transparent', color: frequency === val ? '#fff' : 'var(--muted)', transition: 'all .15s' }}
+              >{label}</button>
             ))}
           </div>
-        </div>
+        ) : existingMonthly ? (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--accent-dim)', borderRadius: 8, padding: '4px 10px', marginBottom: 14, fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+            🔄 {t('tasks.monthly_badge')}
+          </div>
+        ) : null}
+
+        {/* Day selector – weekly */}
+        {frequency === 'weekly' && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>{t('tasks.day')}</div>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {DAYS_FULL.map((d, i) => (
+                <button
+                  key={d}
+                  onClick={() => setDayOfWeek(d)}
+                  style={{
+                    padding: '5px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+                    background: dayOfWeek === d ? 'var(--accent)' : 'var(--border)',
+                    color: dayOfWeek === d ? '#fff' : 'var(--muted)',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {DAYS_SHORT[i]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Day-of-month selector – monthly */}
+        {frequency === 'monthly' && (
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, marginBottom: 6 }}>{t('tasks.day_of_month')}</div>
+            <input className="inp" type="number" min="1" max="31" value={dayOfMonth} onChange={e => setDayOfMonth(e.target.value)} style={{ width: 100 }} />
+          </div>
+        )}
 
         {/* Task text */}
         <div style={{ marginBottom: 12 }}>
@@ -129,7 +164,7 @@ function TaskModal({ existing, defaultDay, weekStart, familyId, members, session
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn-primary" onClick={save} disabled={saving || !text.trim()} style={{ flex: 1, justifyContent: 'center' }}>
-            {saving ? <Spinner size={16} color="#fff" /> : existing ? `💾 ${t('common.save')}` : t('tasks.create')}
+            {saving ? <Spinner size={16} color="#fff" /> : isEdit ? `💾 ${t('common.save')}` : t('tasks.create')}
           </button>
           <button className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
         </div>
@@ -142,48 +177,86 @@ function TaskModal({ existing, defaultDay, weekStart, familyId, members, session
 export default function TasksPage({ members }) {
   const { family, session } = useAuth()
   const { t } = useTranslation()
-  const [tasks,     setTasks]     = useState([])
-  const [modal,     setModal]     = useState(null)
-  const [loading,   setLoading]   = useState(true)
-  const [activeDay, setActiveDay] = useState(
+  const [tasks,              setTasks]              = useState([])
+  const [monthlyTasks,       setMonthlyTasks]       = useState([])
+  const [monthlyCompletions, setMonthlyCompletions] = useState([])
+  const [modal,              setModal]              = useState(null)
+  const [loading,            setLoading]            = useState(true)
+  const [activeDay,          setActiveDay]          = useState(
     DAYS_FULL[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1]
   )
 
   const weekStart = getWeekStart()
 
+  const currentYearMonth = useMemo(() => {
+    const n = new Date()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
+  }, [])
+
+  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart + 'T12:00:00')
+    d.setDate(d.getDate() + i)
+    return d
+  }), [weekStart])
+
   const load = useCallback(async () => {
     if (!family) return
-    const { data } = await supabase
-      .from('tasks')
-      .select('*, family_members(name,avatar_color)')
-      .eq('family_id', family.id)
-      .eq('week_start', weekStart)
-      .order('created_at')
-    setTasks(data || [])
+    const [weeklyRes, monthlyRes, completionsRes] = await Promise.all([
+      supabase.from('tasks').select('*, family_members(name,avatar_color)').eq('family_id', family.id).eq('week_start', weekStart).order('created_at'),
+      supabase.from('monthly_tasks').select('*, family_members(name,avatar_color)').eq('family_id', family.id).eq('is_active', true),
+      supabase.from('monthly_task_completions').select('*').eq('year_month', currentYearMonth),
+    ])
+    const myIds = new Set((monthlyRes.data || []).map(t => t.id))
+    setTasks(weeklyRes.data || [])
+    setMonthlyTasks(monthlyRes.data || [])
+    setMonthlyCompletions((completionsRes.data || []).filter(c => myIds.has(c.task_id)))
     setLoading(false)
-  }, [family, weekStart])
+  }, [family, weekStart, currentYearMonth])
 
   useEffect(() => {
     load()
     if (!family) return
-    const ch = supabase.channel('tasks-weekly')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `family_id=eq.${family.id}` }, load)
+    const ch = supabase.channel('tasks-weekly-mobile')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks',                    filter: `family_id=eq.${family.id}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'monthly_tasks',             filter: `family_id=eq.${family.id}` }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'monthly_task_completions'                                       }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [load, family])
 
+  const monthlyThisWeek = useMemo(() =>
+    monthlyTasks.flatMap(mt => {
+      for (let i = 0; i < 7; i++) {
+        if (weekDates[i].getDate() === mt.day_of_month) {
+          const completion = monthlyCompletions.find(c => c.task_id === mt.id)
+          return [{ ...mt, id: `monthly_${mt.id}`, _realId: mt.id, _template: mt, _isMonthly: true, _completionId: completion?.id || null, is_done: !!completion, day_of_week: DAYS_FULL[i] }]
+        }
+      }
+      return []
+    }), [monthlyTasks, monthlyCompletions, weekDates])
+
   async function toggleDone(task) {
-    await supabase.from('tasks').update({ is_done: !task.is_done }).eq('id', task.id)
-    setTasks(p => p.map(t => t.id === task.id ? { ...t, is_done: !t.is_done } : t))
+    if (task._isMonthly) {
+      task._completionId
+        ? await supabase.from('monthly_task_completions').delete().eq('id', task._completionId)
+        : await supabase.from('monthly_task_completions').insert({ task_id: task._realId, year_month: currentYearMonth })
+      load()
+    } else {
+      await supabase.from('tasks').update({ is_done: !task.is_done }).eq('id', task.id)
+      setTasks(p => p.map(t => t.id === task.id ? { ...t, is_done: !t.is_done } : t))
+    }
   }
 
   function getTasksForDay(day) {
-    return tasks.filter(t => t.day_of_week === day)
+    const weekly  = tasks.filter(t => t.day_of_week === day)
+    const monthly = monthlyThisWeek.filter(t => t.day_of_week === day)
+    return [...weekly, ...monthly]
   }
 
   const activeTasks = getTasksForDay(activeDay)
-  const totalWeek   = tasks.length
-  const doneWeek    = tasks.filter(t => t.is_done).length
+  const allTasksThisWeek = [...tasks, ...monthlyThisWeek]
+  const totalWeek = allTasksThisWeek.length
+  const doneWeek  = allTasksThisWeek.filter(t => t.is_done).length
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spinner size={28} /></div>
 
@@ -218,9 +291,10 @@ export default function TasksPage({ members }) {
       {/* Day pills */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
         {DAYS_FULL.map((d, i) => {
-          const dayTasks  = getTasksForDay(d)
-          const pending   = dayTasks.filter(t => !t.is_done).length
-          const isActive  = d === activeDay
+          const dayTasks = getTasksForDay(d)
+          const pending  = dayTasks.filter(t => !t.is_done).length
+          const isActive = d === activeDay
+          const dateNum  = weekDates[i].getDate()
           return (
             <button
               key={d}
@@ -234,6 +308,7 @@ export default function TasksPage({ members }) {
               }}
             >
               {DAYS_SHORT[i]}
+              <div style={{ fontSize: 9, opacity: 0.7, lineHeight: 1 }}>{dateNum}</div>
               {pending > 0 && (
                 <div style={{ position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)' }}>
                   <div style={{ width: 4, height: 4, borderRadius: '50%', background: isActive ? '#fff8' : 'var(--accent)' }} />
@@ -262,12 +337,12 @@ export default function TasksPage({ members }) {
               className="card"
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '12px 13px', marginBottom: 8,
-                background: task.is_urgent ? 'var(--red-dim)' : 'var(--card)',
-                borderColor: task.is_urgent ? '#FF446630' : 'var(--border)',
+                background: task.is_urgent ? 'var(--red-dim)' : task._isMonthly ? '#FF6B3518' : 'var(--card)',
+                borderColor: task.is_urgent ? '#FF446630' : task._isMonthly ? '#FF6B3560' : 'var(--border)',
                 opacity: task.is_done ? 0.5 : 1,
                 cursor: 'pointer',
               }}
-              onClick={() => setModal({ type: 'edit', data: task })}
+              onClick={() => task._isMonthly ? setModal({ type: 'edit', existingMonthly: task._template }) : setModal({ type: 'edit', data: task })}
             >
               <div
                 className={`checkbox ${task.is_done ? 'teal' : task.is_urgent ? 'red' : ''}`}
@@ -284,11 +359,9 @@ export default function TasksPage({ members }) {
                   color: task.is_urgent && !task.is_done ? 'var(--red)' : 'var(--text)',
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                 }}>
+                  {task._isMonthly && <span style={{ fontSize: 11, marginRight: 4 }}>🔄</span>}
                   {task.text}
                 </div>
-                {task.amount && (
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{task.amount}€</div>
-                )}
               </div>
 
               {assignee
@@ -346,7 +419,7 @@ export default function TasksPage({ members }) {
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120,
                         }}
                       >
-                        {task.is_urgent && '⚡ '}{task.text}
+                        {task.is_urgent && '⚡ '}{task._isMonthly && '🔄 '}{task.text}
                       </span>
                     ))}
                     {total > 3 && <span style={{ fontSize: 11, color: 'var(--dim)' }}>+{total - 3}</span>}
@@ -365,7 +438,8 @@ export default function TasksPage({ members }) {
 
       {modal && (
         <TaskModal
-          existing={modal.type === 'edit' ? modal.data : null}
+          existing={modal.type === 'edit' && !modal.existingMonthly ? modal.data : null}
+          existingMonthly={modal.existingMonthly || null}
           defaultDay={modal.defaultDay || activeDay}
           weekStart={weekStart}
           familyId={family.id}

@@ -91,7 +91,7 @@ function NotificationsSheet({ onClose }) {
   function savePref(key, val) {
     const next = { ...prefs, [key]: val }
     setPrefs(next)
-    localStorage.setItem('notif-prefs', JSON.stringify(next))
+    try { localStorage.setItem('notif-prefs', JSON.stringify(next)) } catch { /* noop */ }
   }
 
   async function requestPermission() {
@@ -165,7 +165,7 @@ function AppearanceSheet({ onClose }) {
   function toggleTheme() {
     const nowLight = !document.body.classList.contains('light')
     document.body.classList.toggle('light')
-    localStorage.setItem('theme', nowLight ? 'light' : 'dark')
+    try { localStorage.setItem('theme', nowLight ? 'light' : 'dark') } catch { /* noop */ }
     setIsDark(!nowLight)
   }
 
@@ -173,7 +173,7 @@ function AppearanceSheet({ onClose }) {
     document.documentElement.style.setProperty('--accent', color)
     document.documentElement.style.setProperty('--accent-dim', color + '20')
     document.documentElement.style.setProperty('--accent-glow', color + '40')
-    localStorage.setItem('accent-color', color)
+    try { localStorage.setItem('accent-color', color) } catch { /* noop */ }
     setAccent(color)
   }
 

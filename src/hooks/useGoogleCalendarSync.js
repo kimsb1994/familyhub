@@ -5,6 +5,10 @@ const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || ''
 const SCOPE            = 'https://www.googleapis.com/auth/calendar'
 const POLL_MS          = 5 * 60 * 1000 // refrescar Google Calendar cada 5 minutos
 
+// iOS Safari bloquea popups abiertos desde contextos async — usamos redirect en su lugar
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent))
+
 export function useGoogleCalendarSync() {
   const [connected,  setConnected]  = useState(false)
   const [checking,   setChecking]   = useState(true)
@@ -115,18 +119,21 @@ export function useGoogleCalendarSync() {
     }
     const params = new URLSearchParams({
       client_id:     GOOGLE_CLIENT_ID,
-      redirect_uri:  window.location.origin,
+      redirect_uri:  globalThis.location.origin,
       response_type: 'code',
       scope:         SCOPE,
       access_type:   'offline',
       prompt:        'consent',
       state:         'gcal_connect',
     })
-    window.open(
-      `https://accounts.google.com/o/oauth2/v2/auth?${params}`,
-      'gcal-auth',
-      'width=520,height=640,scrollbars=yes,resizable=yes'
-    )
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
+    if (isIOS) {
+      // iOS Safari bloquea popups async — redirigimos en la misma pestaña.
+      // GCalCallback (App.js) ya gestiona el flujo same-tab.
+      globalThis.location.href = url
+    } else {
+      globalThis.open(url, 'gcal-auth', 'width=520,height=640,scrollbars=yes,resizable=yes')
+    }
   }, [])
 
   const disconnect = useCallback(async () => {

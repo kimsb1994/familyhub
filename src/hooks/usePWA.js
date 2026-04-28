@@ -1,47 +1,52 @@
 // src/hooks/usePWA.js
 import { useEffect, useState } from 'react'
 
+// iOS Safari no soporta beforeinstallprompt ni Push fuera de PWA instalada
+export const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent))
+
 export function usePWA() {
   const [installPrompt,   setInstallPrompt]   = useState(null)
   const [isInstalled,     setIsInstalled]     = useState(false)
   const [isOnline,        setIsOnline]        = useState(navigator.onLine)
   const [swRegistration,  setSwRegistration]  = useState(null)
-  const [notifPermission, setNotifPermission] = useState(Notification?.permission || 'default')
+  const [notifPermission, setNotifPermission] = useState(
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+  )
 
   // Register service worker
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').then(reg => {
         setSwRegistration(reg)
-        console.log('✅ Service Worker registrat')
       }).catch(err => console.warn('SW error:', err))
     }
   }, [])
 
   // Detect if already installed (standalone mode)
   useEffect(() => {
-    const mq = window.matchMedia('(display-mode: standalone)')
-    setIsInstalled(mq.matches || window.navigator.standalone === true)
+    const mq = globalThis.matchMedia('(display-mode: standalone)')
+    setIsInstalled(mq.matches || navigator.standalone === true)
     mq.addEventListener('change', e => setIsInstalled(e.matches))
   }, [])
 
-  // Capture install prompt
+  // Capture install prompt (solo Chrome/Android, nunca en iOS)
   useEffect(() => {
     const handler = e => { e.preventDefault(); setInstallPrompt(e) }
-    window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    globalThis.addEventListener('beforeinstallprompt', handler)
+    return () => globalThis.removeEventListener('beforeinstallprompt', handler)
   }, [])
 
   // Online/offline
   useEffect(() => {
     const on  = () => setIsOnline(true)
     const off = () => setIsOnline(false)
-    window.addEventListener('online',  on)
-    window.addEventListener('offline', off)
-    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+    globalThis.addEventListener('online',  on)
+    globalThis.addEventListener('offline', off)
+    return () => { globalThis.removeEventListener('online', on); globalThis.removeEventListener('offline', off) }
   }, [])
 
-  // Install app
+  // Install app (solo disponible en Chrome/Android)
   async function promptInstall() {
     if (!installPrompt) return false
     installPrompt.prompt()
@@ -50,15 +55,18 @@ export function usePWA() {
     return outcome === 'accepted'
   }
 
-  // Request push notifications
+  // Request push notifications.
+  // En iOS Safari (no-PWA), Notification no existe o no funciona — saltamos.
   async function requestNotifications() {
-    if (!('Notification' in window)) return false
+    if (typeof Notification === 'undefined') return false
+    // En iOS las notificaciones solo funcionan en PWA instalada (standalone)
+    if (isIOS && !navigator.standalone) return false
     const permission = await Notification.requestPermission()
     setNotifPermission(permission)
     return permission === 'granted'
   }
 
-  // Send a local notification (for reminders)
+  // Send a local notification via Service Worker (funciona en más contextos que new Notification())
   async function notify(title, body, url = '/') {
     if (notifPermission !== 'granted') return
     if (swRegistration) {
@@ -72,5 +80,5 @@ export function usePWA() {
     }
   }
 
-  return { installPrompt, isInstalled, isOnline, notifPermission, promptInstall, requestNotifications, notify }
+  return { installPrompt, isInstalled, isOnline, isIOS, notifPermission, promptInstall, requestNotifications, notify }
 }

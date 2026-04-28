@@ -3,7 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import { supabase } from './lib/supabase'
 import { mergeIngredients, getWeekStart } from './lib/constants'
-import { usePWA } from './hooks/usePWA'
+import { usePWA, isIOS } from './hooks/usePWA'
 
 // ── Google Calendar OAuth callback ───────────────────────────────────────────
 // Cuando el popup de Google redirige de vuelta a la app con ?state=gcal_connect
@@ -151,14 +151,19 @@ function useIsTablet() {
 
 function InstallBanner({ onInstall, onDismiss }) {
   const { t } = useTranslation()
+  const iosDesc = 'Toca ⬆️ → "Afegir a la pantalla d\'inici"'
   return (
     <div style={{ position:'fixed', bottom:'calc(88px + max(0px, env(safe-area-inset-bottom, 0px) - 16px))', left:'50%', transform:'translateX(-50%)', width:'calc(100% - 32px)', maxWidth:440, background:'var(--card)', border:'1px solid #FF6B3540', borderRadius:14, padding:'12px 16px', display:'flex', alignItems:'center', gap:12, zIndex:200, boxShadow:'0 8px 32px #00000060' }}>
       <div style={{ fontSize:32, flexShrink:0 }}>🏡</div>
       <div style={{ flex:1 }}>
         <div style={{ fontSize:13, fontWeight:700 }}>{t('app.install_title')}</div>
-        <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>{t('app.install_desc')}</div>
+        <div style={{ fontSize:11, color:'var(--muted)', marginTop:2 }}>
+          {isIOS ? iosDesc : t('app.install_desc')}
+        </div>
       </div>
-      <button onClick={onInstall} className="btn-primary" style={{ fontSize:12, padding:'8px 14px', flexShrink:0 }}>{t('app.install_btn')}</button>
+      {!isIOS && (
+        <button onClick={onInstall} className="btn-primary" style={{ fontSize:12, padding:'8px 14px', flexShrink:0 }}>{t('app.install_btn')}</button>
+      )}
       <button onClick={onDismiss} className="btn-icon">✕</button>
     </div>
   )
@@ -179,16 +184,27 @@ function AppInner() {
   const isTablet = useIsTablet()
   const [view,        setView]        = useState(() => new URLSearchParams(window.location.search).get('view') || 'home')
 
-  // Fix iOS viewport height: 100dvh not supported on iOS < 15.4
+  // Fix iOS viewport height: 100dvh not supported on iOS < 15.4.
+  // No actualizamos en cada resize porque en iOS el teclado virtual dispara resize
+  // reduciendo window.innerHeight y causando saltos de layout. Solo actualizamos
+  // cuando cambia el ancho (orientación real) no el alto (teclado).
   useEffect(() => {
+    let lastWidth = globalThis.innerWidth
     const setH = () =>
-      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`)
+      document.documentElement.style.setProperty('--app-height', `${globalThis.innerHeight}px`)
+    const onResize = () => {
+      if (globalThis.innerWidth !== lastWidth) {
+        lastWidth = globalThis.innerWidth
+        setH()
+      }
+    }
+    const onOrient = () => setTimeout(setH, 200)
     setH()
-    window.addEventListener('resize', setH)
-    window.addEventListener('orientationchange', setH)
+    globalThis.addEventListener('resize', onResize)
+    globalThis.addEventListener('orientationchange', onOrient)
     return () => {
-      window.removeEventListener('resize', setH)
-      window.removeEventListener('orientationchange', setH)
+      globalThis.removeEventListener('resize', onResize)
+      globalThis.removeEventListener('orientationchange', onOrient)
     }
   }, [])
   const [members,     setMembers]     = useState([])
@@ -198,18 +214,25 @@ function AppInner() {
 
   // Apply saved theme + accent color on app start
   useEffect(() => {
-    const theme  = localStorage.getItem('theme')
-    const accent = localStorage.getItem('accent-color')
-    if (theme === 'light') document.body.classList.add('light')
-    if (accent) {
-      document.documentElement.style.setProperty('--accent',      accent)
-      document.documentElement.style.setProperty('--accent-dim',  accent + '20')
-      document.documentElement.style.setProperty('--accent-glow', accent + '40')
-    }
+    try {
+      const theme  = localStorage.getItem('theme')
+      const accent = localStorage.getItem('accent-color')
+      if (theme === 'light') document.body.classList.add('light')
+      if (accent) {
+        document.documentElement.style.setProperty('--accent',      accent)
+        document.documentElement.style.setProperty('--accent-dim',  accent + '20')
+        document.documentElement.style.setProperty('--accent-glow', accent + '40')
+      }
+    } catch { /* localStorage no disponible (iOS private mode) */ }
   }, [])
 
   useEffect(() => {
-    if (!installPrompt || isInstalled) return
+    if (isInstalled) return
+    // En iOS beforeinstallprompt nunca se dispara — mostramos instrucciones manuales
+    const canShow = isIOS
+      ? !localStorage.getItem('ios-install-dismissed')
+      : !!installPrompt
+    if (!canShow) return
     const t = setTimeout(() => setShowInstall(true), 30000)
     return () => clearTimeout(t)
   }, [installPrompt, isInstalled])
@@ -284,7 +307,10 @@ function AppInner() {
       {showInstall && !isInstalled && (
         <InstallBanner
           onInstall={async () => { await promptInstall(); setShowInstall(false) }}
-          onDismiss={() => setShowInstall(false)}
+          onDismiss={() => {
+            setShowInstall(false)
+            if (isIOS) try { localStorage.setItem('ios-install-dismissed', '1') } catch { /* noop */ }
+          }}
         />
       )}
     </div>
